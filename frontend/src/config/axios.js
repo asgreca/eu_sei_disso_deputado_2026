@@ -6,7 +6,7 @@ const api = axios.create({
   timeout: 120000,
   headers: {
     'Content-Type': 'application/json',
-    'X-API-Key': process.env.REACT_APP_API_KEY || 'camara_dash_2025_secure_key_f8218282a4707045fd28f6af485b3eae',
+    'X-API-Key': process.env.REACT_APP_API_KEY || '',
   },
 });
 

@@ -23,11 +23,11 @@ from openai import OpenAI
 class ColetorBatchSerper:
     def __init__(self):
         # Configurações
-        self.api_key = "15ebf255027f840cd471b8b320076029d54a6b21"
+        self.api_key = os.getenv("SERPER_API_KEY", "")
         self.client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
-        
-        self.db_tabelao = "/Users/aislangreca/TCC/tabelao.db"
-        self.db_noticias = "/Users/aislangreca/TCC/noticias_parlamentares.db"
+
+        self.db_tabelao = os.path.join(os.path.dirname(__file__), "tabelao.db")
+        self.db_noticias = os.path.join(os.path.dirname(__file__), "noticias_parlamentares.db")
         
         self.meses_nomes = {
             1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril",

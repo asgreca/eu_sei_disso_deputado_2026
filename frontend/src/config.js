@@ -7,7 +7,7 @@
 export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 // API Key para autenticação
-export const API_KEY = process.env.REACT_APP_API_KEY || 'camara_dash_2025_secure_key_f8218282a4707045fd28f6af485b3eae';
+export const API_KEY = process.env.REACT_APP_API_KEY || '';
 
 // Headers padrão para todas as requisições
 export const API_HEADERS = {

@@ -514,7 +514,7 @@ API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 # API Key configurável via .env (use uma senha forte em produção)
-API_KEY = os.getenv("API_KEY", "camara_dash_2025_secure_key_f8218282a4707045fd28f6af485b3eae")
+API_KEY = os.getenv("API_KEY", "")
 
 async def get_api_key(api_key: str = Security(api_key_header)):
     """Valida a API Key para endpoints protegidos"""
@@ -4091,7 +4091,7 @@ REMOTE_DB_USER = os.getenv("REMOTE_DB_USER", "aislangreca")
 REMOTE_DB_PASSWORD = os.getenv("REMOTE_DB_PASSWORD", "")
 REMOTE_DB_PATH_SERVER = os.getenv("REMOTE_DB_PATH", "/home/aislangreca/bancos_dados")
 REMOTE_DB_PORT = int(os.getenv("REMOTE_DB_PORT", "22"))
-REMOTE_DB_PATH = os.getenv("REMOTE_DB_PATH", "/Users/aislangreca/bancos_dados_remoto")
+REMOTE_DB_PATH = os.getenv("REMOTE_DB_PATH", "./bancos_dados_remoto")
 
 # Caminhos REMOTOS (prioridade)
 DATABASE_PATHS_REMOTE = {
