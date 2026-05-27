@@ -1,0 +1,15 @@
+fastapi>=0.110.0
+uvicorn>=0.29.0
+pandas>=2.2.0
+numpy>=1.26.0
+httpx>=0.27.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+pydantic>=2.6.0
+openai>=1.12.0
+chromadb>=0.4.22
+duckdb>=0.10.0
+folium>=0.16.0
+branca>=0.7.0
+shapely>=2.0.0
+networkx>=3.2.0

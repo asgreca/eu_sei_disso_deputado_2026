@@ -1,0 +1,122 @@
+# ═══════════════════════════════════════════
+# Eu Sei Disso Deputado — .gitignore
+# ═══════════════════════════════════════════
+
+# Variáveis de ambiente (NUNCA commitar)
+.env
+.env.local
+.env.production.local
+.env.development.local
+.venv
+env/
+venv/
+
+# Bancos de dados
+*.db
+*.db-shm
+*.db-wal
+*.duckdb
+*.duckdb.bak
+*.sqlite
+*.sqlite3
+
+# Vetores / ChromaDB
+vetores/
+
+# Cache e logs
+cache/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Dados baixados / processados
+downloads_camara_rh/
+downloads_contratos/
+downloads_tse/
+archive_noticias/
+discursos_markdown/
+data/
+scratch/
+votacao/
+
+# Batch files (OpenAI API)
+batch_*.json
+batch_*.jsonl
+*.jsonl
+
+# Backups
+*.bak
+*.backup
+*.bak_*
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Node modules e build (frontend)
+frontend/node_modules/
+frontend/build/
+frontend/.env.production.local
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Ferramentas externas / não essenciais
+AsimovGPT/
+caveman-compress/
+x_perfil_robo/
+x_sessao/
+pages/
+scripts/
+skills/
+
+# Claude
+.claude/worktrees/
+
+# Imagens grandes (manter só as do frontend)
+*.png
+*.jpg
+*.jpeg
+*.docx
+!frontend/public/**/*.png
+!frontend/public/**/*.jpg
+!frontend/src/**/*.png
+!frontend/src/**/*.jpg
+
+# GeoJSON do mapa (manter)
+!mapa/br_states.json
+
+# Docs gerados
+docs/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Logs
+*.log
+
+# Playwright
+.playwright_session/
+
+# App.js backups
+frontend/src/App.js.current
+frontend/src/App.js.prev
+
+# Checkpoints e states
+noticias_active_batches*.json
+votos_oficiais_tse.json
+.temas_checkpoint.json
+batch_id_mapping.json
