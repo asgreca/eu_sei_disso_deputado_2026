@@ -33,7 +33,7 @@ import {
   Slider,
   InputAdornment
 } from '@mui/material';
-import { Assessment, Map as MapIcon, LocalOffer, Groups, Assignment, AutoAwesome, Warning, Gavel, Security, Info, AttachMoney as AttachMoneyIcon, Search, PictureAsPdf as PictureAsPdfIcon } from '@mui/icons-material';
+import { Assessment, Map as MapIcon, LocalOffer, Groups, Assignment, AutoAwesome, Warning, Gavel, Security, Info, AttachMoney as AttachMoneyIcon, Search, PictureAsPdf as PictureAsPdfIcon, GppBad, VerifiedUser } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import axios from '../config/axios';
 import { API_HEADERS, API_BASE_URL } from '../config';
@@ -135,6 +135,31 @@ const EmendasParlamentares = () => {
   const [llmResult, setLlmResult] = useState(null);
   const [llmStatus, setLlmStatus] = useState('');
   const [llmError, setLlmError] = useState(null);
+
+  // Alertas de integridade — sanções CGU (CEIS/CEPIM) cruzadas com as emendas/contratos do parlamentar
+  const [sancoesData, setSancoesData] = useState({ resumo: { total_alertas: 0, total_ceis: 0, total_cepim: 0 }, alertas: [] });
+  const [sancoesLoading, setSancoesLoading] = useState(false);
+  const [sancoesAviso, setSancoesAviso] = useState(null);
+
+  const carregarAlertasSancoes = async (parlamentar) => {
+    if (!parlamentar || parlamentar === 'Todos') {
+      setSancoesData({ resumo: { total_alertas: 0, total_ceis: 0, total_cepim: 0 }, alertas: [] });
+      return;
+    }
+    try {
+      setSancoesLoading(true);
+      const params = new URLSearchParams({ nome: parlamentar });
+      const response = await fetch(`${API_BASE_URL}/api/integridade/alertas-sancoes?${params.toString()}`, { headers: API_HEADERS });
+      if (!response.ok) throw new Error(`Erro na API: ${response.status}`);
+      const result = await response.json();
+      setSancoesData(result);
+      setSancoesAviso(result.aviso || null);
+    } catch (err) {
+      console.error('Erro ao buscar alertas de sanções CEIS/CEPIM:', err);
+    } finally {
+      setSancoesLoading(false);
+    }
+  };
 
   const [loadingCities, setLoadingCities] = useState(false);
 
@@ -355,6 +380,7 @@ const EmendasParlamentares = () => {
       console.log('✅ API EMENDAS DATA:', data);
       setAnalysisData(data);
       setLoading(false);
+      carregarAlertasSancoes(filters.parlamentar);
     } catch (err) {
       console.error('Erro ao analisar emendas:', err);
       setError('Erro ao carregar dados. Por favor, tente novamente.');
@@ -1751,10 +1777,105 @@ const EmendasParlamentares = () => {
             </>
           )}
         </Dialog>
-      
+
+        {/* Alertas de Integridade — Sanções CGU (CEIS/CEPIM) cruzadas com emendas/contratos */}
+        {analysisData && filters.parlamentar !== 'Todos' && (
+          <Paper
+            sx={{
+              mt: 4,
+              mb: 4,
+              p: 0,
+              borderRadius: '24px',
+              overflow: 'hidden',
+              border: '1px solid #E0E0E0',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
+            }}
+          >
+            <Box sx={{ p: 4, pb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                <GppBad sx={{ fontSize: 32, color: '#B91C1C' }} />
+                <Typography variant="h5" sx={{ fontWeight: 'bold', color: brandColors.azul }}>
+                  Alertas de Integridade — Sanções CGU (CEIS/CEPIM)
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ color: brandColors.cinza }}>
+                Cruzamento entre o <strong>CEIS</strong> (empresas inidôneas/suspensas) e o <strong>CEPIM</strong> (ONGs impedidas de convênio) —
+                bases de dados abertos publicadas pela própria <strong>CGU</strong> no Portal da Transparência — com as emendas e contratos
+                ligados a {filters.parlamentar}.
+              </Typography>
+            </Box>
+
+            {sancoesLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                <CircularProgress size={40} thickness={4} />
+              </Box>
+            ) : sancoesAviso ? (
+              <Box sx={{ p: 4, pt: 0 }}>
+                <Alert severity="info" sx={{ borderRadius: '12px' }}>{sancoesAviso}</Alert>
+              </Box>
+            ) : sancoesData.alertas.length === 0 ? (
+              <Box sx={{ px: 4, pb: 4, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <VerifiedUser sx={{ color: '#2e7d32' }} />
+                <Typography variant="body1" sx={{ color: brandColors.cinza }}>
+                  Nenhum alerta de sanção encontrado para {filters.parlamentar}.
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ px: 2, pb: 2 }}>
+                <Stack direction="row" spacing={2} sx={{ px: 2, mb: 2 }}>
+                  <Chip label={`${sancoesData.resumo.total_alertas} alertas no total`} sx={{ fontWeight: 'bold' }} />
+                  <Chip label={`${sancoesData.resumo.total_ceis} via CEIS`} variant="outlined" />
+                  <Chip label={`${sancoesData.resumo.total_cepim} via CEPIM`} variant="outlined" />
+                </Stack>
+                <TableContainer component={Box}>
+                  <Table>
+                    <TableHead sx={{ bgcolor: '#FDFDFD' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', color: brandColors.azul }}>Base</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: brandColors.azul }}>Entidade Sancionada</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: brandColors.azul }}>CNPJ</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: brandColors.azul }}>Data do Repasse</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: brandColors.azul }}>Período da Sanção</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {sancoesData.alertas.map((alerta, idx) => (
+                        <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#F1F5F9' } }}>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={alerta.tipo}
+                              sx={{
+                                fontWeight: 'bold',
+                                bgcolor: alerta.tipo?.startsWith('CEIS') ? '#FEF2F2' : '#FFFBEB',
+                                color: alerta.tipo?.startsWith('CEIS') ? '#B91C1C' : '#92400E'
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{alerta.nome_entidade}</Typography>
+                            <Typography variant="caption" color="text.secondary">{alerta.detalhes}</Typography>
+                          </TableCell>
+                          <TableCell><Typography variant="body2">{alerta.cnpj}</Typography></TableCell>
+                          <TableCell><Typography variant="body2">{alerta.data_evento || '—'}</Typography></TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {alerta.sancao_inicio || '—'} {alerta.sancao_fim ? `até ${alerta.sancao_fim}` : '(vigente)'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+          </Paper>
+        )}
+
       <DataSourceFooter
-        sources={[{"label":"Emendas — Portal da Câmara","href":"https://dadosabertos.camara.leg.br","type":"camara"},{"label":"Siga Brasil — Senado Federal","href":"https://www12.senado.leg.br/orcamento/sigabrasil","type":"camara"},{"label":"SIOP — Ministério da Fazenda","href":"https://siop.planejamento.gov.br","type":"receita"}]}
-        note="Emendas parlamentares individuais e de bancada extraídas do SIOP e do Portal de Dados Abertos da Câmara dos Deputados."
+        sources={[{"label":"Emendas — Portal da Câmara","href":"https://dadosabertos.camara.leg.br","type":"camara"},{"label":"Siga Brasil — Senado Federal","href":"https://www12.senado.leg.br/orcamento/sigabrasil","type":"camara"},{"label":"SIOP — Ministério da Fazenda","href":"https://siop.planejamento.gov.br","type":"receita"},{"label":"CEIS/CEPIM — CGU","href":"https://portaldatransparencia.gov.br/sancoes","type":"cgu"}]}
+        note="Emendas parlamentares individuais e de bancada extraídas do SIOP e do Portal de Dados Abertos da Câmara dos Deputados. Cruzamento com sanções CEIS/CEPIM publicadas pela CGU."
       />
     </Container>
     </Box >

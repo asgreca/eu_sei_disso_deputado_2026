@@ -688,28 +688,31 @@ function GastosDetalhamento() {
     cidade: 'Todos'
   });
 
-  // Alertas de integridade — sanções CGU (CEIS/CEPIM) cruzadas com os fornecedores do parlamentar
-  const [sancoesData, setSancoesData] = useState({ resumo: { total_alertas: 0, total_ceis: 0, total_cepim: 0 }, alertas: [] });
-  const [sancoesLoading, setSancoesLoading] = useState(false);
-  const [sancoesAviso, setSancoesAviso] = useState(null);
+  // Fornecedores da COTA PARLAMENTAR (CEAP) que estão sancionados no CEIS/CEPIM da CGU.
+  // Diferente de emendas (que ficam em /gastos/emendas), aqui cruzamos os gastos de
+  // gabinete do próprio deputado com as bases de sanções.
+  const [ceapSancionadosData, setCeapSancionadosData] = useState({ resumo: { total_fornecedores_sancionados: 0, valor_total: 0 }, fornecedores: [], disclaimer: '' });
+  const [ceapSancionadosLoading, setCeapSancionadosLoading] = useState(false);
+  const [ceapSancionadosAviso, setCeapSancionadosAviso] = useState(null);
 
-  const carregarAlertasSancoes = async (parlamentar) => {
+  const carregarFornecedoresSancionadosCeap = async (parlamentar, despesa) => {
     if (!parlamentar || parlamentar === 'Todos') {
-      setSancoesData({ resumo: { total_alertas: 0, total_ceis: 0, total_cepim: 0 }, alertas: [] });
+      setCeapSancionadosData({ resumo: { total_fornecedores_sancionados: 0, valor_total: 0 }, fornecedores: [], disclaimer: '' });
       return;
     }
     try {
-      setSancoesLoading(true);
-      const params = new URLSearchParams({ nome: parlamentar });
-      const response = await fetch(`${API_BASE_URL}/api/integridade/alertas-sancoes?${params.toString()}`, { headers: API_HEADERS });
+      setCeapSancionadosLoading(true);
+      const params = new URLSearchParams({ parlamentar });
+      if (despesa && despesa !== 'Todos') params.append('despesa', despesa);
+      const response = await fetch(`${API_BASE_URL}/api/gastos/fornecedores-sancionados?${params.toString()}`, { headers: API_HEADERS });
       if (!response.ok) throw new Error(`Erro na API: ${response.status}`);
       const result = await response.json();
-      setSancoesData(result);
-      setSancoesAviso(result.aviso || null);
+      setCeapSancionadosData(result);
+      setCeapSancionadosAviso(result.aviso || null);
     } catch (err) {
-      console.error('Erro ao buscar alertas de sanções CEIS/CEPIM:', err);
+      console.error('Erro ao buscar fornecedores CEAP sancionados:', err);
     } finally {
-      setSancoesLoading(false);
+      setCeapSancionadosLoading(false);
     }
   };
   const [infoParlamentar, setInfoParlamentar] = useState(null);
@@ -1032,7 +1035,7 @@ function GastosDetalhamento() {
 
       // Carregar o sociograma separadamente para não travar a renderização do restante da página.
       carregarGrafoFornecedores(filtros.parlamentar, filtros.despesa);
-      carregarAlertasSancoes(filtros.parlamentar);
+      carregarFornecedoresSancionadosCeap(filtros.parlamentar);
 
     } catch (err) {
       console.warn('⚠️ Endpoint principal falhou, tentando fallback...', err);
@@ -1185,7 +1188,7 @@ function GastosDetalhamento() {
       setProgress(100);
       setStatusText('✅ Análise concluída (modo alternativo)!');
       carregarGrafoFornecedores(filtros.parlamentar, filtros.despesa);
-      carregarAlertasSancoes(filtros.parlamentar);
+      carregarFornecedoresSancionadosCeap(filtros.parlamentar);
 
     } catch (err) {
       console.error('❌ Erro no fallback:', err);
@@ -1969,7 +1972,7 @@ function GastosDetalhamento() {
               />
             </Paper>
 
-            {/* Alertas de Integridade — Sanções CGU (CEIS/CEPIM) */}
+            {/* Fornecedores da Cota Parlamentar (CEAP) sancionados no CEIS/CEPIM */}
             {filtros.parlamentar !== 'Todos' && (
               <Paper
                 sx={{
@@ -1986,72 +1989,89 @@ function GastosDetalhamento() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
                     <GppBadIcon sx={{ fontSize: 32, color: '#B91C1C' }} />
                     <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#003366' }}>
-                      Alertas de Integridade — Sanções CGU (CEIS/CEPIM)
+                      Fornecedores da Cota Parlamentar Sancionados (CEIS/CEPIM)
                     </Typography>
                   </Box>
                   <Typography variant="body2" sx={{ color: '#666' }}>
-                    Cruzamento entre o <strong>CEIS</strong> (empresas inidôneas/suspensas) e o <strong>CEPIM</strong> (ONGs impedidas de convênio) —
-                    bases de dados abertos publicadas pela própria <strong>CGU</strong> no Portal da Transparência — com as emendas e contratos
-                    ligados a {filtros.parlamentar}.
+                    Cruzamento entre os fornecedores pagos com a <strong>Cota para Exercício da Atividade Parlamentar (CEAP)</strong> de{' '}
+                    {filtros.parlamentar} e as bases de sanções da própria <strong>CGU</strong> — <strong>CEIS</strong> (empresas
+                    inidôneas/suspensas) e <strong>CEPIM</strong> (ONGs impedidas de convênio).
                   </Typography>
+                  <Alert severity="warning" variant="outlined" sx={{ mt: 2, borderRadius: '12px' }}>
+                    <strong>Importante:</strong> gasto de CEAP é ressarcimento, não licitação — não há obrigação legal de o
+                    parlamentar consultar o CEIS/CEPIM antes de escolher esse fornecedor (diferente de emendas/convênios, onde
+                    a consulta é exigida do órgão público). Isto <strong>não é acusação de irregularidade</strong>, é um alerta
+                    de transparência para avaliação pública.
+                  </Alert>
                 </Box>
 
-                {sancoesLoading ? (
+                {ceapSancionadosLoading ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
                     <CircularProgress size={40} thickness={4} />
                   </Box>
-                ) : sancoesAviso ? (
+                ) : ceapSancionadosAviso ? (
                   <Box sx={{ p: 4, pt: 0 }}>
-                    <Alert severity="info" sx={{ borderRadius: '12px' }}>{sancoesAviso}</Alert>
+                    <Alert severity="info" sx={{ borderRadius: '12px' }}>{ceapSancionadosAviso}</Alert>
                   </Box>
-                ) : sancoesData.alertas.length === 0 ? (
+                ) : ceapSancionadosData.fornecedores.length === 0 ? (
                   <Box sx={{ px: 4, pb: 4, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <VerifiedUserIcon sx={{ color: '#2e7d32' }} />
                     <Typography variant="body1" sx={{ color: '#666' }}>
-                      Nenhum alerta de sanção encontrado para {filtros.parlamentar}.
+                      Nenhum fornecedor da cota parlamentar de {filtros.parlamentar} consta no CEIS/CEPIM.
                     </Typography>
                   </Box>
                 ) : (
                   <Box sx={{ px: 2, pb: 2 }}>
                     <Stack direction="row" spacing={2} sx={{ px: 2, mb: 2 }}>
-                      <Chip label={`${sancoesData.resumo.total_alertas} alertas no total`} sx={{ fontWeight: 'bold' }} />
-                      <Chip label={`${sancoesData.resumo.total_ceis} via CEIS`} variant="outlined" />
-                      <Chip label={`${sancoesData.resumo.total_cepim} via CEPIM`} variant="outlined" />
+                      <Chip label={`${ceapSancionadosData.resumo.total_fornecedores_sancionados} fornecedores sancionados`} sx={{ fontWeight: 'bold' }} />
+                      <Chip
+                        label={`Total pago: ${(ceapSancionadosData.resumo.valor_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+                        variant="outlined"
+                      />
                     </Stack>
                     <TableContainer component={Box}>
                       <Table>
                         <TableHead sx={{ bgcolor: '#FDFDFD' }}>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', color: '#003366' }}>Base</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', color: '#003366' }}>Entidade Sancionada</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', color: '#003366' }}>Fornecedor</TableCell>
                             <TableCell sx={{ fontWeight: 'bold', color: '#003366' }}>CNPJ</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', color: '#003366' }}>Data do Repasse</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', color: '#003366' }} align="right">Total Pago (CEAP)</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', color: '#003366' }}>Período das Notas</TableCell>
                             <TableCell sx={{ fontWeight: 'bold', color: '#003366' }}>Período da Sanção</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {sancoesData.alertas.map((alerta, idx) => (
+                          {ceapSancionadosData.fornecedores.map((f, idx) => (
                             <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#F1F5F9' } }}>
                               <TableCell>
                                 <Chip
                                   size="small"
-                                  label={alerta.tipo}
+                                  label={f.sancao_base}
                                   sx={{
                                     fontWeight: 'bold',
-                                    bgcolor: alerta.tipo?.startsWith('CEIS') ? '#FEF2F2' : '#FFFBEB',
-                                    color: alerta.tipo?.startsWith('CEIS') ? '#B91C1C' : '#92400E'
+                                    bgcolor: f.sancao_base === 'CEIS' ? '#FEF2F2' : '#FFFBEB',
+                                    color: f.sancao_base === 'CEIS' ? '#B91C1C' : '#92400E'
                                   }}
                                 />
                               </TableCell>
                               <TableCell>
-                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{alerta.nome_entidade}</Typography>
-                                <Typography variant="caption" color="text.secondary">{alerta.detalhes}</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{f.fornecedor}</Typography>
+                                <Typography variant="caption" color="text.secondary">{f.sancao_categoria}</Typography>
                               </TableCell>
-                              <TableCell><Typography variant="body2">{alerta.cnpj}</Typography></TableCell>
-                              <TableCell><Typography variant="body2">{alerta.data_evento || '—'}</Typography></TableCell>
+                              <TableCell><Typography variant="body2">{f.cnpj}</Typography></TableCell>
+                              <TableCell align="right">
+                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                  {(f.total_gasto || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">{f.n_notas} nota(s)</Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2">{f.primeira_nota || '—'} a {f.ultima_nota || '—'}</Typography>
+                              </TableCell>
                               <TableCell>
                                 <Typography variant="body2">
-                                  {alerta.sancao_inicio || '—'} {alerta.sancao_fim ? `até ${alerta.sancao_fim}` : '(vigente)'}
+                                  {f.sancao_inicio || '—'} {f.sancao_fim ? `até ${f.sancao_fim}` : '(vigente)'}
                                 </Typography>
                               </TableCell>
                             </TableRow>
@@ -2059,6 +2079,9 @@ function GastosDetalhamento() {
                         </TableBody>
                       </Table>
                     </TableContainer>
+                    <Typography variant="caption" sx={{ display: 'block', px: 2, pt: 2, color: '#999' }}>
+                      {ceapSancionadosData.disclaimer}
+                    </Typography>
                   </Box>
                 )}
               </Paper>

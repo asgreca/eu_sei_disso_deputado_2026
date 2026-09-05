@@ -233,8 +233,11 @@ def cruzamento_historico(conn):
 
     # 1. Cruzar CEIS com Emendas
     print("  🔍 Verificando Emendas enviadas para empresas no CEIS...")
+    # DISTINCT: documentos_emendas pode ter linhas duplicadas (mesmo documento inserido
+    # em execuções diferentes do pipeline de coleta) — sem isso, cada duplicata vira um
+    # alerta repetido na auditoria.
     query_emendas = """
-    SELECT d.cnpj, d.codigo_emenda, d.doc_data, c.nome_sancionado, c.data_inicio, c.data_fim, c.categoria_sancao
+    SELECT DISTINCT d.cnpj, d.codigo_emenda, d.doc_data, c.nome_sancionado, c.data_inicio, c.data_fim, c.categoria_sancao
     FROM documentos_emendas d
     JOIN lista_ceis c ON REPLACE(REPLACE(REPLACE(d.cnpj, '.', ''), '-', ''), '/', '') = c.cnpj
     """
@@ -269,7 +272,7 @@ def cruzamento_historico(conn):
     # 2. Cruzar CEPIM com Emendas
     print("  🔍 Verificando Emendas enviadas para ONGs no CEPIM...")
     query_cepim = """
-    SELECT d.cnpj, d.codigo_emenda, d.doc_data, c.nome_entidade, c.motivo
+    SELECT DISTINCT d.cnpj, d.codigo_emenda, d.doc_data, c.nome_entidade, c.motivo
     FROM documentos_emendas d
     JOIN lista_cepim c ON REPLACE(REPLACE(REPLACE(d.cnpj, '.', ''), '-', ''), '/', '') = c.cnpj
     """

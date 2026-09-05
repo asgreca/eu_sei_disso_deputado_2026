@@ -6059,6 +6059,123 @@ async def get_alertas_sancoes(uf: Optional[str] = None, partido: Optional[str] =
             conn.close()
 
 
+@app.get("/api/gastos/fornecedores-sancionados")
+async def get_fornecedores_sancionados_ceap(parlamentar: str, despesa: Optional[str] = None):
+    """
+    Cruza os fornecedores da Cota para Exercício da Atividade Parlamentar (CEAP)
+    do deputado com as bases de sanções da CGU (CEIS/CEPIM), publicadas no Portal
+    da Transparência.
+
+    IMPORTANTE — disclaimer jurídico: ao contrário de emendas/convênios formalizados
+    por um órgão público (onde a consulta ao CEIS/CEPIM é exigida pelo art. 14 da
+    Lei nº 14.133/2021 e pelo Decreto nº 11.129/2022), a CEAP é um regime de
+    ressarcimento — não uma licitação ou contrato administrativo — e não há norma
+    específica obrigando o parlamentar a consultar essas bases antes de escolher um
+    fornecedor. Um resultado aqui NÃO indica irregularidade ou ilegalidade: é um
+    alerta de transparência para que o eleitor/imprensa possa avaliar o caso.
+    """
+    try:
+        conn = get_db_connection("tabelao")
+
+        tabela_ceis_existe = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='lista_ceis'"
+        ).fetchone()
+        if not tabela_ceis_existe:
+            return {
+                "resumo": {"total_fornecedores_sancionados": 0, "valor_total": 0},
+                "fornecedores": [],
+                "disclaimer": "Auditoria de sanções CEIS/CEPIM ainda não foi executada. Rode 'python 32_sancoes.py' para popular esta base.",
+                "aviso": "Auditoria de sanções CEIS/CEPIM ainda não foi executada. Rode 'python 32_sancoes.py' para popular esta base."
+            }
+
+        where_clauses = ["nome = ?", "txtCNPJCPF IS NOT NULL", "txtCNPJCPF != ''"]
+        params = [parlamentar]
+        if despesa and despesa != 'Todos':
+            where_clauses.append("txtDescricao LIKE ?")
+            params.append(f"%{despesa}%")
+
+        query = f"""
+            SELECT
+                txtCNPJCPF,
+                MAX(txtFornecedor) as fornecedor,
+                SUM(COALESCE(vlrLiquido, 0)) as total_gasto,
+                COUNT(*) as n_notas,
+                MIN(datEmissao) as primeira_nota,
+                MAX(datEmissao) as ultima_nota
+            FROM tabelao
+            WHERE {' AND '.join(where_clauses)}
+            GROUP BY txtCNPJCPF
+        """
+        df_forn = pd.read_sql_query(query, conn, params=params)
+
+        def limpar_cnpj(v):
+            return re.sub(r'\D', '', str(v or '')).zfill(14)
+
+        df_forn['cnpj_limpo'] = df_forn['txtCNPJCPF'].apply(limpar_cnpj)
+        cnpjs_validos = [c for c in df_forn['cnpj_limpo'].unique().tolist() if c and c != '0' * 14]
+
+        sancoes_por_cnpj = {}
+        if cnpjs_validos:
+            placeholders = ','.join(['?'] * len(cnpjs_validos))
+            df_ceis = pd.read_sql_query(
+                f"SELECT cnpj, nome_sancionado, categoria_sancao, data_inicio, data_fim FROM lista_ceis WHERE cnpj IN ({placeholders})",
+                conn, params=cnpjs_validos
+            )
+            for _, s in df_ceis.iterrows():
+                sancoes_por_cnpj[s['cnpj']] = {
+                    "base": "CEIS", "categoria": s.get('categoria_sancao'),
+                    "sancao_inicio": s.get('data_inicio'), "sancao_fim": s.get('data_fim')
+                }
+            df_cepim = pd.read_sql_query(
+                f"SELECT cnpj, motivo FROM lista_cepim WHERE cnpj IN ({placeholders})",
+                conn, params=cnpjs_validos
+            )
+            for _, s in df_cepim.iterrows():
+                sancoes_por_cnpj.setdefault(s['cnpj'], {"base": "CEPIM", "categoria": s.get('motivo'), "sancao_inicio": None, "sancao_fim": None})
+
+        df_forn['sancao'] = df_forn['cnpj_limpo'].map(sancoes_por_cnpj)
+        df_sancionados = df_forn[df_forn['sancao'].notna()].copy()
+        df_sancionados = df_sancionados.replace({np.nan: None, np.inf: None, -np.inf: None})
+
+        fornecedores = []
+        for _, row in df_sancionados.iterrows():
+            sancao = row['sancao']
+            fornecedores.append({
+                "cnpj": row['txtCNPJCPF'],
+                "fornecedor": row['fornecedor'],
+                "total_gasto": float(row['total_gasto'] or 0),
+                "n_notas": int(row['n_notas'] or 0),
+                "primeira_nota": row['primeira_nota'],
+                "ultima_nota": row['ultima_nota'],
+                "sancao_base": sancao.get('base'),
+                "sancao_categoria": sancao.get('categoria'),
+                "sancao_inicio": sancao.get('sancao_inicio'),
+                "sancao_fim": sancao.get('sancao_fim'),
+            })
+
+        resumo = {
+            "total_fornecedores_sancionados": len(fornecedores),
+            "valor_total": sum(f["total_gasto"] for f in fornecedores),
+        }
+
+        return {
+            "resumo": resumo,
+            "fornecedores": fornecedores,
+            "disclaimer": (
+                "Gastos de CEAP são ressarcimentos ao parlamentar, não licitações ou contratos administrativos. "
+                "Não há obrigação legal específica de consultar o CEIS/CEPIM antes de escolher um fornecedor nesse regime "
+                "(diferente de emendas/convênios, onde a consulta é exigida do órgão público pelo art. 14 da Lei nº 14.133/2021). "
+                "Este alerta NÃO indica irregularidade ou ilegalidade — é um ponto de transparência para avaliação pública."
+            )
+        }
+    except Exception as e:
+        logger.error(f"Erro ao cruzar fornecedores CEAP com CEIS/CEPIM: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
 @app.get("/api/emendas/conflitos-filtros")
 async def get_emendas_conflitos_filtros():
     """Retorna as combinações únicas de Estado, Partido e Parlamentar que possuem conflitos registrados."""
