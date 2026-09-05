@@ -17528,7 +17528,13 @@ async def get_presenca_analise(
         d_inicio = d_fim - pd.DateOffset(months=6)
         if data_inicio:
             try:
-                d_inicio = datetime.strptime(data_inicio, "%Y-%m-%d")
+                # Cap real de 6 meses: a busca de calendário abaixo faz uma chamada HTTP
+                # à API da Câmara POR EVENTO (sequencial, sem cache). Sem esse limite, um
+                # intervalo de anos (o filtro de data da tela permite isso) dispara dezenas
+                # a centenas de chamadas externas e estoura o timeout do frontend (120s).
+                d_inicio_solicitado = datetime.strptime(data_inicio, "%Y-%m-%d")
+                limite_6_meses = d_fim - pd.DateOffset(months=6)
+                d_inicio = max(d_inicio_solicitado, limite_6_meses)
             except: pass
 
         if comissao and comissao != 'Todas' and parlamentar and parlamentar != 'Todos':
