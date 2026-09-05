@@ -19,6 +19,7 @@ import {
   AccordionDetails,
   Breadcrumbs,
   Link,
+  Stack,
 } from '@mui/material';
 import {
   ExpandMore,
@@ -30,6 +31,7 @@ import {
   Security,
   AutoAwesome,
   VerifiedUser,
+  GitHub as GitHubIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { brandColors } from '../utils/chartOptions';
@@ -333,11 +335,23 @@ export default function Metodologia() {
         <Typography variant="body2" sx={{ color: brandColors.cinza }}>
           Autor: Aislan Greca
         </Typography>
-        <Chip
-          icon={<AutoAwesome sx={{ fontSize: 16 }} />}
-          label="Inscrito no 2º Concurso de Reúso de Dados Abertos da CGU"
-          sx={{ mt: 2, bgcolor: `${brandColors.verde}15`, color: brandColors.verde, fontWeight: 'bold' }}
-        />
+        <Stack direction="row" spacing={1.5} justifyContent="center" flexWrap="wrap" sx={{ mt: 2 }}>
+          <Chip
+            icon={<AutoAwesome sx={{ fontSize: 16 }} />}
+            label="Inscrito no 2º Concurso de Reúso de Dados Abertos da CGU"
+            sx={{ bgcolor: `${brandColors.verde}15`, color: brandColors.verde, fontWeight: 'bold' }}
+          />
+          <Chip
+            component="a"
+            href="https://github.com/asgreca/eu_sei_disso_deputado_2026"
+            target="_blank"
+            rel="noopener noreferrer"
+            clickable
+            icon={<GitHubIcon sx={{ fontSize: 16 }} />}
+            label="Código-fonte no GitHub"
+            sx={{ bgcolor: `${brandColors.azul}15`, color: brandColors.azul, fontWeight: 'bold' }}
+          />
+        </Stack>
       </Box>
     </Container>
   );

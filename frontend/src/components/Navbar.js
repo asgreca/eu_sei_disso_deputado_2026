@@ -18,6 +18,9 @@ import {
 import MenuIcon from '@mui/icons-material/Menu';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
+import GitHubIcon from '@mui/icons-material/GitHub';
+
+const GITHUB_REPO_URL = 'https://github.com/asgreca/eu_sei_disso_deputado_2026';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 
@@ -179,6 +182,17 @@ const Navbar = () => {
                                 </Menu>
                             </Box>
                         ))}
+                        <IconButton
+                            component="a"
+                            href={GITHUB_REPO_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Código-fonte no GitHub"
+                            title="Ver código-fonte no GitHub"
+                            sx={{ color: 'white', ml: 1 }}
+                        >
+                            <GitHubIcon />
+                        </IconButton>
                     </Box>
                 </Toolbar>
             </Container>
@@ -219,6 +233,16 @@ const Navbar = () => {
                             </Collapse>
                         </React.Fragment>
                     ))}
+                    <ListItem
+                        button
+                        component="a"
+                        href={GITHUB_REPO_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <GitHubIcon sx={{ mr: 1.5 }} />
+                        <ListItemText primary="Código-fonte (GitHub)" />
+                    </ListItem>
                 </List>
             </Drawer>
         </AppBar>
