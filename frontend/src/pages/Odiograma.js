@@ -689,10 +689,10 @@ function Odiograma() {
                         formatter: `<b>${parlamentar} → Partido ${info.partido}</b><br/>Conexão de afiliação partidária`
                     },
                     lineStyle: {
-                        color: '#CCCCCC',
-                        width: 1.5,
+                        color: '#8A8A8A',
+                        width: 2.5,
                         type: 'dashed',
-                        opacity: 0.4,
+                        opacity: 0.7,
                     },
                     symbol: ['none', 'none'],
                 });
@@ -711,10 +711,10 @@ function Odiograma() {
                         formatter: `<b>${parlamentar} → Estado ${info.estado}</b><br/>Conexão de origem geográfica`
                     },
                     lineStyle: {
-                        color: '#DDDDDD',
-                        width: 1,
+                        color: '#A0A0A0',
+                        width: 2,
                         type: 'dotted',
-                        opacity: 0.3,
+                        opacity: 0.6,
                     },
                     symbol: ['none', 'none'],
                 });
