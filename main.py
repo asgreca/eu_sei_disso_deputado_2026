@@ -518,7 +518,7 @@ API_KEY = os.getenv("API_KEY", "")
 
 async def get_api_key(api_key: str = Security(api_key_header)):
     """Valida a API Key para endpoints protegidos"""
-    if api_key == API_KEY:
+    if API_KEY and api_key == API_KEY:
         return api_key
     raise HTTPException(
         status_code=403,
@@ -4058,7 +4058,7 @@ async def validate_api_key_middleware(request: Request, call_next):
             media_type="application/json"
         )
     
-    if api_key != API_KEY:
+    if not API_KEY or api_key != API_KEY:
         return Response(
             content=json.dumps({
                 "detail": "❌ API Key inválida. Verifique suas credenciais.",
