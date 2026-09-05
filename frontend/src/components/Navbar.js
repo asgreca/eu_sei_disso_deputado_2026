@@ -66,7 +66,7 @@ const pages = [
     {
         title: 'Manifesto',
         items: [
-            { name: 'O Projeto', path: '/manifesto' },
+            { name: 'Metodologia e Dados Abertos', path: '/manifesto' },
         ],
     },
 ];

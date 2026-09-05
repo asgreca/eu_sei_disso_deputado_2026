@@ -15,6 +15,7 @@ import EmendasParlamentares from './pages/EmendasParlamentares';
 import ConflitosEmendas from './pages/ConflitosEmendas';
 import ChatParlamentar from './pages/ChatParlamentar';
 import Sociograma from './pages/Odiograma';
+import Metodologia from './pages/Metodologia';
 import AtuacaoComissoes from './pages/AtuacaoComissoes';
 import AuditoriaImprensaV2 from './pages/AuditoriaImprensaV2';
 import BuscaSemantica from './pages/BuscaSemantica';
@@ -83,7 +84,7 @@ const App = () => {
           <Route path="/comissoes/atuacao" element={<AtuacaoComissoes />} />
           <Route path="/comissoes/presenca" element={<PresencaParlamentar />} />
           <Route path="/busca/semantica" element={<BuscaSemantica />} />
-          <Route path="/manifesto" element={<Navigate to="/" replace />} />
+          <Route path="/manifesto" element={<Metodologia />} />
           <Route path="/admin" element={<AdminPipeline />} />
           <Route path="/aislan" element={<PainelAislan />} />
           <Route path="*" element={<Navigate to="/" replace />} />
