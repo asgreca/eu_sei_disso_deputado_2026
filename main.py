@@ -7032,13 +7032,47 @@ async def get_parlamentares_unified(
     try:
         conn = sqlite3.connect(DATABASE_PATHS["tabelao"])
         if source == "passagens":
+            conn = sqlite3.connect(DATABASE_PATHS["tabelao"])
             query = """
-                SELECT DISTINCT nome, sgPartido, sgUF, ultimoStatus_urlFoto as urlFoto
+                SELECT DISTINCT sgUF
                 FROM tabelao
                 WHERE UPPER(txtDescricao) LIKE '%PASSAGEM AÉREA%'
+                  AND sgUF IS NOT NULL
+                  AND sgUF != ''
+                ORDER BY sgUF
+            """
+            df = pd.read_sql_query(query, conn)
+            conn.close()
+            return {"estados": df['sgUF'].dropna().tolist()}
+
+        estados_br = sorted([
+            "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", 
+            "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", 
+            "SP", "SE", "TO"
+        ])
+        return {"estados": estados_br}
+    except Exception as e:
+        logger.error(f"Erro em get_estados_unified: {e}")
+        return {"estados": []}
+
+@app.get("/api/filtros/partidos")
+@app.get("/api/filters/partidos")
+async def get_partidos_unified(estado: Optional[str] = None, source: Optional[str] = None, atual: bool = False):
+    """Retorna lista de partidos de forma ultra-rápida via cache."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATHS["tabelao"])
+        if source == "passagens":
+            query = """
+                SELECT DISTINCT sgPartido
+                FROM tabelao
+                WHERE UPPER(txtDescricao) LIKE '%PASSAGEM AÉREA%'
+                  AND sgPartido IS NOT NULL
+                  AND sgPartido != ''
             """
         else:
-            query = "SELECT DISTINCT nome, sgPartido, sgPartidoAtual, sgUF, urlFoto FROM cache_filtros_parlamentares WHERE 1=1"
+            col = "sgPartidoAtual" if atual else "sgPartido"
+            query = f"SELECT DISTINCT {col} as sgPartido FROM cache_filtros_partidos WHERE {col} IS NOT NULL"
+        
         params = []
         
         if estado and estado != "Todos":
@@ -7052,8 +7086,8 @@ async def get_parlamentares_unified(
         if partido_atual and partido_atual != "Todos":
             query += " AND sgPartidoAtual = ?"
             params.append(partido_atual)
-            
-        query += " ORDER BY nome"
+
+        query += " GROUP BY nome ORDER BY nome"
         df = pd.read_sql_query(query, conn, params=params)
         conn.close()
         
