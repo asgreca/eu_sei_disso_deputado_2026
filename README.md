@@ -1,6 +1,6 @@
 # Eu Sei Disso, Deputado!
 
-**Sistema de auditoria e transparencia parlamentar** que integra dados abertos da Camara dos Deputados, TSE, IBGE e outras fontes publicas para analise de gastos, votacoes, emendas, discursos e conexoes entre parlamentares brasileiros.
+**Sistema de auditoria e transparencia parlamentar** que integra dados abertos da Camara dos Deputados, TSE, IBGE, CGU e outras fontes publicas para analise de gastos, votacoes, emendas, discursos e conexoes entre parlamentares brasileiros.
 
 Desenvolvido como Trabalho de Conclusao de Curso (TCC) na **UNIVESP** - Universidade Virtual do Estado de Sao Paulo.
 
@@ -15,6 +15,7 @@ Desenvolvido como Trabalho de Conclusao de Curso (TCC) na **UNIVESP** - Universi
 | **Passagens Aereas** | Rastreamento de trechos, frequencias e padroes de viagem |
 | **Emendas Parlamentares** | Fluxo do dinheiro: emenda - convenio - fornecedor - socios |
 | **Conflitos de Interesse** | Cruzamento emendas x doacoes x socios de fornecedores |
+| **Alertas de Integridade (CEIS/CEPIM)** | Cruzamento das sancoes da CGU (empresas inidoneas e ONGs impedidas) com emendas e contratos publicos |
 | **Mapa Eleitoral** | Geolocalizacao de votos por secao eleitoral (dados TSE 2022) |
 | **Mapa Partidario** | Dominancia partidaria por local de votacao |
 | **Sociograma de Fornecedores** | Grafo de conexoes entre parlamentares via fornecedores compartilhados |
@@ -81,7 +82,9 @@ Desenvolvido como Trabalho de Conclusao de Curso (TCC) na **UNIVESP** - Universi
 |-- 14_emendas.py              # Coleta de emendas parlamentares
 |-- 15_votacao.py              # Coleta de votacoes
 |-- 16_presenca.py             # Coleta de presenca
-|-- 17-35_*.py                 # Comissoes, processos, doacoes, assessores, etc.
+|-- 17-31_*.py                 # Comissoes, processos, doacoes, assessores, etc.
+|-- 32_sancoes.py              # Auditoria de sancoes CGU (CEIS/CEPIM) x emendas/contratos
+|-- 33-35_*.py                 # Investigacoes complementares
 ```
 
 ## Instalacao
@@ -113,6 +116,10 @@ cp .env_exemplo .env
 
 # Executar o pipeline de coleta (primeira vez)
 python 000_pipeline_final.py
+
+# Auditoria de sancoes CGU (CEIS/CEPIM) — baixa os extratos automaticamente
+# do Portal da Transparencia, sem necessidade de chave de API
+python 32_sancoes.py
 
 # Iniciar os servidores
 uvicorn main:app --host 0.0.0.0 --port 8000 &
@@ -152,6 +159,8 @@ npm run build      # Build de producao
 | [API da Camara dos Deputados](https://dadosabertos.camara.leg.br/) | Gastos, votacoes, presenca, proposicoes, comissoes |
 | [TSE](https://dadosabertos.tse.jus.br/) | Resultados eleitorais 2022, geolocalizacao de votos |
 | [Portal da Transparencia](https://portaldatransparencia.gov.br/) | Emendas parlamentares, convenios |
+| [CGU — CEIS](https://portaldatransparencia.gov.br/download-de-dados/ceis) | Cadastro de Empresas Inidoneas e Suspensas |
+| [CGU — CEPIM](https://portaldatransparencia.gov.br/download-de-dados/cepim) | Cadastro de Entidades sem Fins Lucrativos Impedidas |
 | [IBGE](https://www.ibge.gov.br/) | Dados censitarios, IDH, indicadores municipais |
 | [Receita Federal (CNPJ)](https://dados.rfb.gov.br/) | Dados cadastrais de empresas e socios |
 

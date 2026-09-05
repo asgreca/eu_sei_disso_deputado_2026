@@ -105,7 +105,7 @@ const Navbar = () => {
     };
 
     return (
-        <AppBar position="sticky" sx={{ backgroundColor: '#003366', top: 0, zIndex: 1100, backdropFilter: 'blur(8px)', boxShadow: '0 1px 0 rgba(255,255,255,0.08)' }}>
+        <AppBar position="static" sx={{ backgroundColor: '#003366' }}>
             <Container maxWidth="xl">
                 <Toolbar disableGutters>
                     {/* Desktop Logo */}

@@ -1,12 +1,13 @@
 import axios from 'axios';
+import { API_KEY } from '../config';
 
 // Configuração base do axios para todas as requisições
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  baseURL: process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000'),
   timeout: 120000,
   headers: {
     'Content-Type': 'application/json',
-    'X-API-Key': process.env.REACT_APP_API_KEY || '',
+    'X-API-Key': API_KEY,
   },
 });
 

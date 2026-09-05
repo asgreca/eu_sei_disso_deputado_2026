@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   FormControl,
@@ -9,6 +9,8 @@ import {
   Paper,
   Typography,
   CircularProgress,
+  LinearProgress,
+  Alert,
 } from '@mui/material';
 import axios from '../config/axios';
 import { API_HEADERS, API_BASE_URL } from '../config';
@@ -42,20 +44,25 @@ const FilterSelector = ({
   fields = ['estado', 'partido', 'parlamentar'],
   showComissao = false,
   sourceType = 'default', // 'default', 'conformidade', 'passagens' ou 'emendas'
-  useCurrentParty = false
+  useCurrentParty = false,
+  requireSelection = false,
+  requireAll = false,
 }) => {
-  const [estados, setEstados] = useState(ESTADOS_BR);
+  const [estados, setEstados] = useState([]);
   const [partidos, setPartidos] = useState([]);
   const [partidosAtuais, setPartidosAtuais] = useState([]);
   const [parlamentares, setParlamentares] = useState([]);
   const [comissoes, setComissoes] = useState([]);
   const [despesas, setDespesas] = useState([]);
 
-  const [loading, setLoading] = useState({
-    estados: false, partidos: false, partidosAtuais: false,
-    parlamentares: false, despesas: false, comissoes: false,
-  });
-  const setL = (key, val) => setLoading(prev => ({ ...prev, [key]: val }));
+  const [loadingEstados, setLoadingEstados] = useState(false);
+  const [loadingPartidos, setLoadingPartidos] = useState(false);
+  const [loadingParlamentares, setLoadingParlamentares] = useState(false);
+  // Evita condição de corrida: respostas de requisições antigas (ex.: a carga inicial sem
+  // filtro) podem chegar depois de uma busca já filtrada e sobrescrever a lista com dados errados.
+  const parlamentaresRequestId = useRef(0);
+  const [loadingComissoes, setLoadingComissoes] = useState(false);
+  const [loadingDespesas, setLoadingDespesas] = useState(false);
 
   const [filters, setFilters] = useState({
     estado: '',
@@ -86,71 +93,140 @@ const FilterSelector = ({
   }, []);
 
   const loadEstados = async () => {
-    setL('estados', true);
     try {
+      setLoadingEstados(true);
+      console.log(`🔍 FilterSelector [${sourceType}]: Carregando estados...`);
       let url = `${API_BASE_URL}/api/filtros/estados`;
-      if (sourceType === 'conformidade') url = `${API_BASE_URL}/api/filtros/conformidade`;
-      else if (sourceType === 'passagens') url = `${API_BASE_URL}/api/filtros/estados?source=passagens`;
+      if (sourceType === 'conformidade') {
+        url = `${API_BASE_URL}/api/filtros/conformidade`;
+      } else if (sourceType === 'passagens') {
+        url = `${API_BASE_URL}/api/filtros/estados?source=passagens`;
+      }
+
       const response = await fetch(url, { headers: API_HEADERS });
       if (!response.ok) throw new Error('Erro na carga de estados');
+
       const data = await response.json();
       const estadosList = data.estados || data || [];
+      console.log(`✅ FilterSelector: ${estadosList.length} estados carregados.`);
       setEstados(Array.isArray(estadosList) ? estadosList : []);
     } catch (error) {
+      console.error('❌ Erro ao carregar estados:', error);
       setEstados(ESTADOS_BR);
     } finally {
-      setL('estados', false);
+      setLoadingEstados(false);
     }
   };
 
   const loadPartidos = async (estado) => {
-    setL('partidos', true);
     try {
+      setLoadingPartidos(true);
+      console.log(`🔍 FilterSelector [${sourceType}]: Carregando partidos para ${estado}...`);
+
       let url = '';
-      if (sourceType === 'conformidade') url = `${API_BASE_URL}/api/filtros/conformidade?uf=${estado || ''}`;
-      else if (sourceType === 'passagens') url = `${API_BASE_URL}/api/filtros/partidos?source=passagens&estado=${estado && estado !== 'Todos' ? encodeURIComponent(estado) : ''}`;
-      else { url = `${API_BASE_URL}/api/filtros/partidos?estado=${estado || ''}`; if (useCurrentParty) url += `&atual=true`; }
+      if (sourceType === 'conformidade') {
+        url = `${API_BASE_URL}/api/filtros/conformidade?uf=${estado || ''}`;
+      } else if (sourceType === 'passagens') {
+        const estadoQuery = estado && estado !== 'Todos' ? encodeURIComponent(estado) : '';
+        url = `${API_BASE_URL}/api/filtros/partidos?source=passagens&estado=${estadoQuery}`;
+      } else {
+        url = `${API_BASE_URL}/api/filtros/partidos?estado=${estado || ''}`;
+        if (useCurrentParty) {
+          url += `&atual=true`;
+        }
+      }
+
       const response = await fetch(url, { headers: API_HEADERS });
       if (!response.ok) throw new Error('Erro na carga de partidos');
+
       const data = await response.json();
-      setPartidos(Array.isArray(data.partidos || data) ? (data.partidos || data) : []);
+      const partidosList = data.partidos || data || [];
+      console.log(`✅ FilterSelector: ${partidosList.length} partidos carregados.`);
+      setPartidos(Array.isArray(partidosList) ? partidosList : []);
     } catch (error) {
       console.error('❌ Erro ao carregar partidos:', error);
     } finally {
-      setL('partidos', false);
+      setLoadingPartidos(false);
     }
   };
 
   const loadParlamentares = async (estado, partido) => {
-    setL('parlamentares', true);
+    const requestId = ++parlamentaresRequestId.current;
     try {
+      setLoadingParlamentares(true);
+      console.log(`🔍 FilterSelector [${sourceType}]: Carregando parlamentares para ${estado} / ${partido}...`);
+
       let url = '';
-      if (sourceType === 'conformidade') url = `${API_BASE_URL}/api/filtros/conformidade?uf=${estado || ''}&partido=${partido || ''}`;
-      else if (sourceType === 'emendas') { const p = new URLSearchParams(); if (estado && estado !== 'Todos') p.append('estado', estado); if (partido && partido !== 'Todos') p.append('partido', partido); url = `${API_BASE_URL}/api/emendas/parlamentares?${p.toString()}`; }
-      else if (sourceType === 'passagens') { const p = new URLSearchParams(); p.append('source', 'passagens'); if (estado && estado !== 'Todos') p.append('estado', estado); if (partido && partido !== 'Todos') p.append('partido', partido); url = `${API_BASE_URL}/api/filtros/parlamentares?${p.toString()}`; }
-      else { let q = '/api/filtros/parlamentares?'; if (estado && estado !== 'Todos') q += `estado=${estado}&`; if (partido && partido !== 'Todos') q += `${useCurrentParty ? 'partido_atual' : 'partido'}=${encodeURIComponent(partido)}&`; url = `${API_BASE_URL}${q}`; }
+      if (sourceType === 'conformidade') {
+        url = `${API_BASE_URL}/api/filtros/conformidade?uf=${estado || ''}&partido=${partido || ''}`;
+      } else if (sourceType === 'emendas') {
+        const params = new URLSearchParams();
+        if (estado && estado !== 'Todos') params.append('estado', estado);
+        if (partido && partido !== 'Todos') params.append('partido', partido);
+        url = `${API_BASE_URL}/api/emendas/parlamentares?${params.toString()}`;
+      } else if (sourceType === 'passagens') {
+        const params = new URLSearchParams();
+        params.append('source', 'passagens');
+        if (estado && estado !== 'Todos') params.append('estado', estado);
+        if (partido && partido !== 'Todos') params.append('partido', partido);
+        url = `${API_BASE_URL}/api/filtros/parlamentares?${params.toString()}`;
+      } else {
+        let queryPath = '/api/filtros/parlamentares?';
+        if (estado && estado !== 'Todos') queryPath += `estado=${estado}&`;
+        if (partido && partido !== 'Todos') {
+          const param = useCurrentParty ? 'partido_atual' : 'partido';
+          queryPath += `${param}=${encodeURIComponent(partido)}&`;
+        }
+        url = `${API_BASE_URL}${queryPath}`;
+      }
+
       const response = await fetch(url, { headers: API_HEADERS });
       if (!response.ok) throw new Error('Erro na carga de parlamentares');
+      
       const data = await response.json();
-      const list = data.parlamentares || data || [];
-      const unique = new Map();
-      (Array.isArray(list) ? list : []).forEach(p => { const nome = p.nome || p.nomeParlamentar || p; if (nome && !unique.has(nome)) unique.set(nome, { label: nome, value: nome, ...p }); });
-      setParlamentares(Array.from(unique.values()));
+      const parlamentaresList = data.parlamentares || data || [];
+      // Deduplicar por nome
+      const uniqueParlamentares = new Map();
+      (Array.isArray(parlamentaresList) ? parlamentaresList : []).forEach(p => {
+        const nome = p.nome || p.nomeParlamentar || p;
+        if (nome && !uniqueParlamentares.has(nome)) {
+          uniqueParlamentares.set(nome, {
+            label: nome,
+            value: nome,
+            ...p
+          });
+        }
+      });
+
+      const mapped = Array.from(uniqueParlamentares.values());
+
+      // Descarta a resposta se já existe uma busca mais recente em andamento
+      // (evita que uma requisição antiga, resolvida fora de ordem, sobrescreva a lista certa).
+      if (requestId !== parlamentaresRequestId.current) {
+        console.log(`⏭️ FilterSelector: resposta obsoleta de parlamentares descartada (req ${requestId}, atual ${parlamentaresRequestId.current}).`);
+        return;
+      }
+
+      console.log(`✅ FilterSelector: ${mapped.length} parlamentares únicos carregados.`);
+      setParlamentares(mapped);
     } catch (error) {
       console.error('❌ Erro ao carregar parlamentares:', error);
     } finally {
-      setL('parlamentares', false);
+      if (requestId === parlamentaresRequestId.current) {
+        setLoadingParlamentares(false);
+      }
     }
   };
 
   const loadParlamentaresDuckDB = async (estado, partidoAtual, partidoEleicao) => {
-    setL('parlamentares', true);
+    const requestId = ++parlamentaresRequestId.current;
     try {
+      setLoadingParlamentares(true);
       let url = `${API_BASE_URL}/api/mapa-eleitoral/filtros?`;
       if (estado && estado !== 'Todos') url += `uf=${estado}&`;
       if (partidoAtual && partidoAtual !== 'Todos') url += `partido_atual=${encodeURIComponent(partidoAtual)}&`;
       if (partidoEleicao && partidoEleicao !== 'Todos') url += `partido_eleicao=${encodeURIComponent(partidoEleicao)}&`;
-      
+
       const response = await fetch(url, { headers: API_HEADERS });
       if (!response.ok) throw new Error('Erro ao carregar parlamentares');
       const data = await response.json();
@@ -162,17 +238,20 @@ const FilterSelector = ({
         mapped.unshift({ label: selectedParlamentar, value: selectedParlamentar });
       }
 
+      if (requestId !== parlamentaresRequestId.current) return;
       setParlamentares(mapped);
     } catch (error) {
       console.error('❌ Erro ao carregar parlamentares do DuckDB:', error);
     } finally {
-      setL('parlamentares', false);
+      if (requestId === parlamentaresRequestId.current) {
+        setLoadingParlamentares(false);
+      }
     }
   };
 
   const loadPartidosAtuais = async (estado, partidoEleicao, parlamentar) => {
-    setL('partidosAtuais', true);
     try {
+      setLoadingPartidos(true);
       let url = `${API_BASE_URL}/api/mapa-eleitoral/filtros?`;
       if (estado && estado !== 'Todos') url += `uf=${estado}&`;
       if (partidoEleicao && partidoEleicao !== 'Todos') url += `partido_eleicao=${encodeURIComponent(partidoEleicao)}`;
@@ -209,13 +288,14 @@ const FilterSelector = ({
     } catch (error) {
       console.error('❌ Erro ao carregar partidos atuais:', error);
     } finally {
-      setL('partidosAtuais', false);
+      setLoadingPartidos(false);
     }
   };
 
   const loadDespesas = async (estado, partido, parlamentar) => {
-    setL('despesas', true);
     try {
+      setLoadingDespesas(true);
+      console.log(`🔍 FilterSelector: Carregando despesas para ${parlamentar}...`);
       let url = `/api/filtros/despesas-parlamentar?parlamentar=${encodeURIComponent(parlamentar || 'Todos')}`;
       if (estado && estado !== 'Todos') url += `&estado=${estado}`;
       if (partido && partido !== 'Todos') url += `&partido=${partido}`;
@@ -233,9 +313,10 @@ const FilterSelector = ({
       console.log(`✅ FilterSelector: ${mapped.length} despesas carregadas.`);
       setDespesas(mapped);
     } catch (error) {
+      console.error('❌ Erro ao carregar despesas:', error);
       setDespesas([]);
     } finally {
-      setL('despesas', false);
+      setLoadingDespesas(false);
     }
   };
 
@@ -302,28 +383,53 @@ const FilterSelector = ({
   };
 
   const loadComissoes = async (parlamentar) => {
-    setL('comissoes', true);
     try {
-      const url = parlamentar && parlamentar !== 'Todos'
+      setLoadingComissoes(true);
+      console.log(`🔍 FilterSelector: Carregando comissões...`);
+      const url = parlamentar && parlamentar !== 'Todos' 
         ? `/api/filtros/comissoes?parlamentar=${encodeURIComponent(parlamentar)}`
         : `/api/filtros/comissoes`;
+        
       const response = await axios.get(url, { headers: API_HEADERS });
-      const list = response.data.comissoes || response.data || [];
-      setComissoes((Array.isArray(list) ? list : []).map(c => ({
+      const comissoesList = response.data.comissoes || response.data || [];
+      
+      const mapped = (Array.isArray(comissoesList) ? comissoesList : []).map(c => ({
         label: c.comissao || c.label || c,
         value: c.comissao || c.value || c
-      })));
+      }));
+
+      console.log(`✅ FilterSelector: ${mapped.length} comissões carregadas.`);
+      setComissoes(mapped);
     } catch (error) {
+      console.error('❌ Erro ao carregar comissões:', error);
       setComissoes([]);
     } finally {
-      setL('comissoes', false);
+      setLoadingComissoes(false);
     }
   };
 
-  const iconMap = {
-    estado: '📍', partido: '🏛️', partidoAtual: '🏢',
-    parlamentar: '👤', comissao: '🏛️', despesa: '💰'
+  const loadingMap = {
+    estado: loadingEstados,
+    partido: loadingPartidos,
+    partidoAtual: loadingPartidos,
+    parlamentar: loadingParlamentares,
+    comissao: loadingComissoes,
+    despesa: loadingDespesas,
   };
+
+  const SpinnerIcon = () => (
+    <CircularProgress size={18} thickness={4} sx={{ mr: 1, color: 'inherit', opacity: 0.6 }} />
+  );
+
+  const iconMap = {
+    estado: '📍',
+    partido: '🏛️',
+    partidoAtual: '🏢',
+    parlamentar: '👤',
+    comissao: '🏛️',
+    despesa: '💰'
+  };
+
   const labelMap = {
     estado: 'Estado',
     partido: useCurrentParty ? 'Partido Atual' : 'Partido (Eleição)',
@@ -332,61 +438,26 @@ const FilterSelector = ({
     comissao: 'Comissão',
     despesa: 'Tipo de Despesa'
   };
-  const loadingKeyMap = {
-    estado: 'estados', partido: 'partidos', partidoAtual: 'partidosAtuais',
-    parlamentar: 'parlamentares', comissao: 'comissoes', despesa: 'despesas'
-  };
-  const itemsMap = {
-    estado: estados, partido: partidos, partidoAtual: partidosAtuais,
-    parlamentar: parlamentares, comissao: comissoes, despesa: despesas
-  };
 
-  const renderSelect = (field, items, value, onChange) => {
-    const isLoading = loading[loadingKeyMap[field] || field];
-    const label = `${iconMap[field]} ${labelMap[field]}`;
-    return (
-      <FormControl fullWidth disabled={isLoading} sx={{ position: 'relative' }}>
-        <InputLabel id={`filter-${field}-label`}>{label}</InputLabel>
-        <Select
-          labelId={`filter-${field}-label`}
-          value={value}
-          label={label}
-          onChange={onChange}
-          sx={{ backgroundColor: '#FFFFFF', borderRadius: '8px' }}
-        >
-          {isLoading
-            ? <MenuItem disabled value="">
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#546e7a', fontSize: '14px' }}>
-                  <CircularProgress size={13} thickness={5} sx={{ color: '#546e7a' }} />
-                  Carregando...
-                </Box>
-              </MenuItem>
-            : [
-                <MenuItem key="todos" value="Todos">Todos</MenuItem>,
-                ...items.map((opt) => (
-                  <MenuItem key={getOptionValue(opt)} value={getOptionValue(opt)}>
-                    {getOptionLabel(opt)}
-                  </MenuItem>
-                ))
-              ]
-          }
-        </Select>
-        {isLoading && (
-          <CircularProgress
-            size={16}
-            thickness={5}
-            sx={{
-              position: 'absolute', right: 36, top: '50%',
-              transform: 'translateY(-50%)', color: '#546e7a', pointerEvents: 'none',
-            }}
-          />
-        )}
-      </FormControl>
-    );
-  };
+  const isAnyLoading = loadingEstados || loadingPartidos || loadingParlamentares || loadingComissoes || loadingDespesas;
+  const selectionFields = ['estado', 'partido', 'partidoAtual', 'parlamentar'];
+  const hasSelection = selectionFields.some(f => filters[f] && filters[f] !== 'Todos');
+  const hasAllSelection = ['estado', 'partido', 'parlamentar'].every(f => filters[f] && filters[f] !== 'Todos');
+  const showSelectionWarning = requireSelection && !isAnyLoading && (requireAll ? !hasAllSelection : !hasSelection);
 
   return (
-    <Paper elevation={2} sx={{ p: 3, borderRadius: '12px', mb: 3 }}>
+    <Paper elevation={2} sx={{ p: 3, borderRadius: '12px', mb: 3, position: 'relative', overflow: 'hidden' }}>
+      {isAnyLoading && (
+        <LinearProgress
+          sx={{
+            position: 'absolute', top: 0, left: 0, right: 0,
+            height: 3,
+            borderRadius: '12px 12px 0 0',
+            '& .MuiLinearProgress-bar': { backgroundColor: '#1976d2' },
+            backgroundColor: 'rgba(25, 118, 210, 0.15)',
+          }}
+        />
+      )}
       <Typography variant="h6" sx={{ mb: 2, color: '#003366', fontWeight: 'bold' }}>
         Filtros Intercambiáveis
       </Typography>
@@ -394,26 +465,82 @@ const FilterSelector = ({
       <Grid container spacing={2}>
         {fields.map((field) => (
           <Grid item xs={12} sm={6} md={3} key={field}>
-            {renderSelect(
-              field,
-              itemsMap[field] || [],
-              filters[field],
-              (e) => handleFilterChange(field, e.target.value)
-            )}
+            <FormControl fullWidth>
+              <InputLabel id={`filter-${field}-label`}>
+                {`${iconMap[field]} ${labelMap[field]}`}
+              </InputLabel>
+              <Select
+                labelId={`filter-${field}-label`}
+                id={`filter-${field}`}
+                value={filters[field]}
+                label={`${iconMap[field]} ${labelMap[field]}`}
+                onChange={(e) => handleFilterChange(field, e.target.value)}
+                disabled={loadingMap[field]}
+                IconComponent={loadingMap[field] ? SpinnerIcon : undefined}
+                sx={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '8px',
+                }}
+              >
+                <MenuItem value="Todos">Todos</MenuItem>
+                {field === 'estado' && estados.map((est) => (
+                  <MenuItem key={getOptionValue(est)} value={getOptionValue(est)}>{getOptionLabel(est)}</MenuItem>
+                ))}
+                {field === 'partido' && partidos.map((part) => (
+                  <MenuItem key={getOptionValue(part)} value={getOptionValue(part)}>{getOptionLabel(part)}</MenuItem>
+                ))}
+                {field === 'partidoAtual' && partidosAtuais.map((part) => (
+                  <MenuItem key={getOptionValue(part)} value={getOptionValue(part)}>{getOptionLabel(part)}</MenuItem>
+                ))}
+                {field === 'parlamentar' && parlamentares.map((parl) => (
+                  <MenuItem key={getOptionValue(parl)} value={getOptionValue(parl)}>{getOptionLabel(parl)}</MenuItem>
+                ))}
+                {field === 'despesa' && despesas.map((desp) => (
+                  <MenuItem key={getOptionValue(desp)} value={getOptionValue(desp)}>{getOptionLabel(desp)}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
         ))}
 
         {showComissao && (
           <Grid item xs={12} sm={6} md={3}>
-            {renderSelect(
-              'comissao',
-              comissoes,
-              filters.comissao,
-              (e) => handleFilterChange('comissao', e.target.value)
-            )}
+            <FormControl fullWidth>
+              <InputLabel id="filter-comissao-label">
+                🏛️ Comissão
+              </InputLabel>
+              <Select
+                labelId="filter-comissao-label"
+                id="filter-comissao"
+                value={filters.comissao}
+                label="🏛️ Comissão"
+                onChange={(e) => handleFilterChange('comissao', e.target.value)}
+                disabled={loadingComissoes}
+                IconComponent={loadingComissoes ? SpinnerIcon : undefined}
+                sx={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '8px',
+                }}
+              >
+                <MenuItem value="Todos">Todos</MenuItem>
+                {comissoes.map((com) => (
+                  <MenuItem key={getOptionValue(com)} value={getOptionValue(com)}>
+                    {getOptionLabel(com)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
         )}
       </Grid>
+
+      {showSelectionWarning && (
+        <Alert severity="warning" sx={{ mt: 2, borderRadius: '8px' }}>
+          {requireAll
+            ? 'Selecione Estado, Partido e Parlamentar para continuar.'
+            : 'Selecione pelo menos um filtro — Estado, Partido ou Parlamentar — antes de executar.'}
+        </Alert>
+      )}
     </Paper>
   );
 };

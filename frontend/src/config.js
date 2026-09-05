@@ -4,7 +4,7 @@
  */
 
 // URL base da API (local ou remoto)
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000');
 
 // API Key para autenticação
 export const API_KEY = process.env.REACT_APP_API_KEY || '';

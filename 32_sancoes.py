@@ -3,21 +3,94 @@
 
 """
 32_sancoes.py — Auditoria de Sanções (CEIS/CEPIM)
-Integra as bases de empresas inidôneas e ONGs impedidas com o Tabelão.
-Identifica se empresas contrataram com o governo ENQUANTO estavam punidas.
+Integra as bases de empresas inidôneas (CEIS) e ONGs impedidas (CEPIM) — dados
+abertos publicados pela própria Controladoria-Geral da União (CGU) no Portal da
+Transparência — com o Tabelão. Identifica se empresas/ONGs contrataram com o
+governo ou receberam emendas parlamentares ENQUANTO estavam punidas.
+
+Fonte oficial (dados abertos, formato aberto, sem necessidade de chave de API):
+  https://portaldatransparencia.gov.br/download-de-dados/ceis
+  https://portaldatransparencia.gov.br/download-de-dados/cepim
+
+O script baixa automaticamente o extrato completo mais recente já publicado
+(a CGU atualiza esses extratos diariamente, mas com alguns dias de defasagem
+até a publicação — por isso tentamos alguns dias para trás). Se a rede estiver
+indisponível, reaproveita o CSV mais recente já baixado anteriormente na pasta
+do projeto (padrão de nome `AAAAMMDD_CEIS.csv` / `AAAAMMDD_CEPIM.csv`, igual ao
+publicado pela CGU).
 """
 
 import sqlite3
 import pandas as pd
 import os
 import glob
+import io
+import zipfile
+import logging
+import requests
 from tqdm import tqdm
-from datetime import datetime
+from datetime import datetime, timedelta
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Configurações
 DB_NAME = "tabelao.db"
-CEIS_FILE = "20260403_CEIS.csv"
-CEPIM_FILE = "20260401_CEPIM.csv"
+BASE_DOWNLOAD_URL = "https://portaldatransparencia.gov.br/download-de-dados"
+MAX_DIAS_TENTATIVA = 15  # publicação do extrato tem alguns dias de defasagem
+
+
+def _csv_local_mais_recente(sufixo):
+    """Reaproveita o CSV `AAAAMMDD_<sufixo>.csv` mais recente já presente no projeto."""
+    candidatos = sorted(glob.glob(f"[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_{sufixo}.csv"), reverse=True)
+    return candidatos[0] if candidatos else None
+
+
+def baixar_extrato_cgu(dataset, sufixo_arquivo):
+    """
+    Baixa o extrato completo (CEIS ou CEPIM) publicado pela CGU no Portal da
+    Transparência, em formato aberto (ZIP contendo um CSV ';'-delimitado,
+    encoding ISO-8859-1 — o mesmo formato que a CGU disponibiliza para download
+    manual). Tenta os últimos `MAX_DIAS_TENTATIVA` dias até achar uma data
+    já publicada. Retorna o caminho do CSV local (baixado ou reaproveitado).
+    """
+    hoje = datetime.now()
+    for i in range(MAX_DIAS_TENTATIVA):
+        data_ref = hoje - timedelta(days=i)
+        aaaammdd = data_ref.strftime("%Y%m%d")
+        nome_csv = f"{aaaammdd}_{sufixo_arquivo}.csv"
+
+        if os.path.exists(nome_csv):
+            return nome_csv
+
+        url = f"{BASE_DOWNLOAD_URL}/{dataset}/{aaaammdd}"
+        try:
+            resp = requests.get(url, timeout=30)
+            if resp.status_code != 200 or len(resp.content) < 1000:
+                continue
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+                membro = next((n for n in zf.namelist() if n.lower().endswith('.csv')), None)
+                if not membro:
+                    continue
+                zf.extract(membro, ".")
+                if membro != nome_csv:
+                    os.replace(membro, nome_csv)
+            print(f"✅ Extrato {dataset.upper()} de {aaaammdd} baixado do Portal da Transparência (CGU).")
+            return nome_csv
+        except (requests.RequestException, zipfile.BadZipFile) as e:
+            logger.debug(f"Falha ao baixar {dataset} para {aaaammdd}: {e}")
+            continue
+
+    # Rede indisponível ou nenhum extrato recente publicado: reaproveita o mais recente já em disco
+    fallback = _csv_local_mais_recente(sufixo_arquivo)
+    if fallback:
+        print(f"⚠️  Não foi possível baixar um extrato novo de {dataset.upper()}. Reaproveitando '{fallback}' já existente.")
+        return fallback
+
+    raise RuntimeError(
+        f"Não foi possível obter o extrato {dataset.upper()} da CGU (nem via download automático, nem localmente). "
+        f"Baixe manualmente em {BASE_DOWNLOAD_URL}/{dataset} e salve como AAAAMMDD_{sufixo_arquivo}.csv na raiz do projeto."
+    )
 
 def setup_db():
     conn = sqlite3.connect(DB_NAME, timeout=60)
@@ -80,11 +153,11 @@ def converter_data(val):
     except:
         return None
 
-def ingest_ceis(conn):
-    print(f"📦 Ingerindo {CEIS_FILE}...")
+def ingest_ceis(conn, ceis_file):
+    print(f"📦 Ingerindo {ceis_file}...")
     try:
         # CEIS usa ponto e vírgula e encoding Latin-1/ISO-8859-1
-        df = pd.read_csv(CEIS_FILE, sep=';', encoding='iso-8859-1', dtype=str)
+        df = pd.read_csv(ceis_file, sep=';', encoding='iso-8859-1', dtype=str)
         
         # Normalizar nomes de colunas (remover acentos e caracteres especiais mangled)
         # Ex: "DATA INCIO SANO" -> "DATA INICIO SANCAO"
@@ -128,10 +201,10 @@ def ingest_ceis(conn):
     except Exception as e:
         print(f"❌ Erro ao ler CEIS: {e}")
 
-def ingest_cepim(conn):
-    print(f"📦 Ingerindo {CEPIM_FILE}...")
+def ingest_cepim(conn, cepim_file):
+    print(f"📦 Ingerindo {cepim_file}...")
     try:
-        df = pd.read_csv(CEPIM_FILE, sep=';', encoding='iso-8859-1', dtype=str)
+        df = pd.read_csv(cepim_file, sep=';', encoding='iso-8859-1', dtype=str)
         df['cnpj_limpo'] = df['CNPJ ENTIDADE'].apply(limpar_cnpj)
         
         count = 0
@@ -152,7 +225,12 @@ def ingest_cepim(conn):
 
 def cruzamento_historico(conn):
     print("\n🕵️‍♂️ Iniciando Cruzamento Histórico (Sancionados vs Emendas/Contratos)...")
-    
+
+    # Reprocessa do zero a cada execução: evita duplicar alertas quando o script
+    # roda de novo após um extrato CEIS/CEPIM mais recente ser baixado.
+    conn.execute("DELETE FROM auditoria_sancoes")
+    conn.commit()
+
     # 1. Cruzar CEIS com Emendas
     print("  🔍 Verificando Emendas enviadas para empresas no CEIS...")
     query_emendas = """
@@ -277,13 +355,24 @@ def cruzamento_historico(conn):
     print(f"  ✨ Encontrados {total_contratos} conflitos históricos em contratos públicos.")
 
 def main():
+    import sys
+    refresh = "--refresh" in sys.argv
+
     conn = setup_db()
-    # Ingestão apenas se as tabelas estiverem vazias para poupar tempo
     ceis_count = conn.execute("SELECT COUNT(*) FROM lista_ceis").fetchone()[0]
-    if ceis_count == 0:
-        ingest_ceis(conn)
-        ingest_cepim(conn)
-    
+
+    # Ingestão só roda se as tabelas estiverem vazias (poupar tempo) ou se
+    # --refresh for passado explicitamente (baixa o extrato mais recente da CGU).
+    if ceis_count == 0 or refresh:
+        if refresh:
+            conn.execute("DELETE FROM lista_ceis")
+            conn.execute("DELETE FROM lista_cepim")
+            conn.commit()
+        ceis_file = baixar_extrato_cgu("ceis", "CEIS")
+        cepim_file = baixar_extrato_cgu("cepim", "CEPIM")
+        ingest_ceis(conn, ceis_file)
+        ingest_cepim(conn, cepim_file)
+
     cruzamento_historico(conn)
     conn.close()
     print("\n✅ Auditoria de Sanções concluída! Verifique a tabela 'auditoria_sancoes'.")

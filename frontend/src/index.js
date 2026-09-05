@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import axios from 'axios';
 import App from './App';
@@ -13,122 +13,115 @@ axios.defaults.headers.common['Expires'] = '0';
 
 // Interceptor para adicionar timestamp em TODAS as requisições
 axios.interceptors.request.use((config) => {
+  // Adiciona timestamp único para evitar cache
   const separator = config.url.includes('?') ? '&' : '?';
   config.url = `${config.url}${separator}_nocache=${Date.now()}`;
   return config;
 });
 
-const ThemedApp = () => {
-  const theme = createTheme({
-    palette: {
-      mode: 'light',
-      primary: { main: '#009739' },
-      secondary: { main: '#003366' },
-      warning: { main: '#FFF81C' },
-      error: { main: '#ED8B00' },
-      background: {
-        default: '#FFFFFF',
-        paper: '#FFFFFF',
-      },
-      text: {
-        primary: '#003366',
-        secondary: '#666666',
-      },
+// Tema customizado seguindo o manual de marca
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#009739', // Verde principal
     },
-    typography: {
-      fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-      h1: {
-        fontFamily: '"Montserrat", sans-serif',
-        fontWeight: 700,
-        letterSpacing: '-0.03em',
-        lineHeight: 1.05,
-      },
-      h2: {
-        fontFamily: '"Montserrat", sans-serif',
-        fontWeight: 700,
-        letterSpacing: '-0.03em',
-        lineHeight: 1.05,
-      },
-      h3: {
-        fontFamily: '"Montserrat", sans-serif',
-        fontWeight: 700,
-        letterSpacing: '-0.02em',
-        lineHeight: 1.1,
-      },
-      h4: {
-        fontFamily: '"Montserrat", sans-serif',
-        fontWeight: 700,
-        letterSpacing: '-0.02em',
-        lineHeight: 1.1,
-      },
-      h5: {
-        fontFamily: '"Montserrat", sans-serif',
-        fontWeight: 700,
-        letterSpacing: '-0.01em',
-      },
-      h6: {
-        fontFamily: '"Montserrat", sans-serif',
-        fontWeight: 700,
-      },
-      body1: {
-        fontFamily: '"Inter", sans-serif',
-        fontWeight: 400,
-      },
-      body2: {
-        fontFamily: '"Inter", sans-serif',
-        fontWeight: 400,
-      },
-      caption: {
-        fontFamily: '"Roboto Mono", monospace',
-        fontWeight: 400,
-      },
+    secondary: {
+      main: '#003366', // Azul principal
     },
-    components: {
-      MuiButton: {
-        styleOverrides: {
-          root: {
-            borderRadius: 8,
-            textTransform: 'none',
-            fontWeight: 600,
-          },
-          contained: {
-            backgroundColor: '#009739',
-            '&:hover': {
-              backgroundColor: '#007a2f',
-            },
-          },
+    warning: {
+      main: '#FFF81C', // Amarelo para alertas
+    },
+    error: {
+      main: '#ED8B00', // Laranja escuro para avisos
+    },
+    background: {
+      default: '#FFFFFF', // Branco
+      paper: '#FFFFFF',
+    },
+    text: {
+      primary: '#003366', // Azul para textos principais
+      secondary: '#666666', // Cinza para textos secundários
+    },
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h1: {
+      fontFamily: '"Montserrat", sans-serif',
+      fontWeight: 700,
+      color: '#003366',
+    },
+    h2: {
+      fontFamily: '"Montserrat", sans-serif',
+      fontWeight: 700,
+      color: '#003366',
+    },
+    h3: {
+      fontFamily: '"Montserrat", sans-serif',
+      fontWeight: 700,
+      color: '#003366',
+    },
+    h4: {
+      fontFamily: '"Montserrat", sans-serif',
+      fontWeight: 700,
+      color: '#003366',
+    },
+    h5: {
+      fontFamily: '"Montserrat", sans-serif',
+      fontWeight: 700,
+      color: '#003366',
+    },
+    h6: {
+      fontFamily: '"Montserrat", sans-serif',
+      fontWeight: 700,
+      color: '#003366',
+    },
+    body1: {
+      fontFamily: '"Inter", sans-serif',
+      fontWeight: 400,
+    },
+    body2: {
+      fontFamily: '"Inter", sans-serif',
+      fontWeight: 400,
+    },
+    caption: {
+      fontFamily: '"Roboto Mono", monospace',
+      fontWeight: 400,
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          textTransform: 'none',
+          fontWeight: 600,
         },
-      },
-      MuiAppBar: {
-        styleOverrides: {
-          root: {
-            backgroundColor: '#003366',
-          },
-        },
-      },
-      MuiPaper: {
-        styleOverrides: {
-          root: {
-            backgroundImage: 'none',
+        contained: {
+          backgroundColor: '#009739',
+          '&:hover': {
+            backgroundColor: '#007a2f',
           },
         },
       },
     },
-  });
-
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <App />
-    </ThemeProvider>
-  );
-};
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#003366',
+        },
+      },
+    },
+  },
+});
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThemedApp />
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <App />
+      </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

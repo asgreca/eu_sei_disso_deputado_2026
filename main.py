@@ -5962,6 +5962,103 @@ async def get_emendas_conflitos_ranking(uf: Optional[str] = None, partido: Optio
         if 'conn' in locals() and conn:
             conn.close()
 
+@app.get("/api/integridade/alertas-sancoes")
+async def get_alertas_sancoes(uf: Optional[str] = None, partido: Optional[str] = None, nome: Optional[str] = None):
+    """
+    Retorna os alertas de integridade identificados ao cruzar as bases de sanções
+    publicadas pela própria CGU no Portal da Transparência — CEIS (empresas
+    inidôneas/suspensas) e CEPIM (ONGs impedidas de convênio) — com as emendas
+    parlamentares e contratos públicos do Tabelão (ver 32_sancoes.py).
+    """
+    try:
+        conn = get_db_connection("tabelao")
+
+        tabela_existe = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='auditoria_sancoes'"
+        ).fetchone()
+        if not tabela_existe:
+            return {
+                "resumo": {"total_alertas": 0, "total_ceis": 0, "total_cepim": 0},
+                "alertas": [],
+                "aviso": "Auditoria de sanções CEIS/CEPIM ainda não foi executada. Rode 'python 32_sancoes.py' para popular esta base."
+            }
+
+        # auditoria_sancoes.id_vinculo guarda o código da emenda (para os tipos
+        # CEIS/EMENDA e CEPIM/EMENDA) ou o número do contrato (CEIS/CONTRATO,
+        # sem parlamentar associado). Usamos o join com 'emendas' apenas para
+        # recuperar o autor e permitir filtrar/agrupar por parlamentar.
+        query = """
+            SELECT
+                a.tipo,
+                a.cnpj,
+                a.nome_entidade,
+                a.id_vinculo,
+                a.data_evento,
+                a.sancao_inicio,
+                a.sancao_fim,
+                a.detalhes,
+                e.autor_emenda,
+                e.valor_empenhado
+            FROM auditoria_sancoes a
+            LEFT JOIN emendas e ON a.id_vinculo = e.codigo_emenda
+            WHERE a.conflito_historico = 1
+            ORDER BY a.data_evento DESC
+        """
+        df = pd.read_sql_query(query, conn)
+
+        def limpar_nome_autor(autor):
+            if not autor or pd.isna(autor):
+                return None
+            nome_str = str(autor).split('/')[0].strip()
+            nome_str = nome_str.replace('DEP. ', '').replace('DEP ', '')
+            return nome_str.upper().strip()
+
+        df['parlamentar'] = df['autor_emenda'].apply(limpar_nome_autor)
+
+        # Metadados do parlamentar (partido/UF/foto) para quem tem emenda associada
+        df_meta = pd.read_sql_query("""
+            SELECT UPPER(TRIM(nome)) as nome_upper, MAX(sgPartido) as partido, MAX(sgUF) as uf,
+                   MAX(ultimoStatus_urlFoto) as ultimoStatus_urlFoto
+            FROM tabelao GROUP BY nome_upper
+        """, conn)
+        meta_dict = df_meta.set_index('nome_upper').to_dict('index')
+
+        def anexar_meta(row):
+            meta = meta_dict.get(row['parlamentar']) or {}
+            row['partido'] = meta.get('partido')
+            row['uf'] = meta.get('uf')
+            row['ultimoStatus_urlFoto'] = meta.get('ultimoStatus_urlFoto')
+            return row
+
+        df = df.apply(anexar_meta, axis=1)
+
+        if uf:
+            df = df[df['uf'] == uf]
+        if partido and not nome:
+            df = df[df['partido'] == partido]
+        if nome:
+            df = df[df['parlamentar'] == nome.upper().strip()]
+
+        df = df.replace({np.nan: None, np.inf: None, -np.inf: None})
+
+        resumo = {
+            "total_alertas": int(len(df)),
+            "total_ceis": int(df['tipo'].astype(str).str.startswith('CEIS').sum()),
+            "total_cepim": int(df['tipo'].astype(str).str.startswith('CEPIM').sum()),
+        }
+
+        return {
+            "resumo": resumo,
+            "alertas": df.to_dict('records')
+        }
+    except Exception as e:
+        logger.error(f"Erro ao buscar alertas de sanções CEIS/CEPIM: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
 @app.get("/api/emendas/conflitos-filtros")
 async def get_emendas_conflitos_filtros():
     """Retorna as combinações únicas de Estado, Partido e Parlamentar que possuem conflitos registrados."""
@@ -9870,17 +9967,49 @@ async def get_conexoes_gastos(parlamentar: str, despesa: str):
         df_forn_top = df_forn_ranked.head(24).reset_index(drop=True)
         highlighted_supplier_ids = set(df_forn_top.head(6)['txtCNPJCPF'].astype(str).tolist())
 
+        # Cruzamento com sanções da CGU (CEIS/CEPIM) — só para os fornecedores que
+        # de fato entram no grafo, para manter a consulta barata.
+        def _limpar_cnpj_grafo(valor):
+            return re.sub(r'\D', '', str(valor or '')).zfill(14)
+
+        sancoes_por_cnpj = {}
+        try:
+            cnpjs_top_limpos = {cnpj_orig: _limpar_cnpj_grafo(cnpj_orig) for cnpj_orig in df_forn_top['txtCNPJCPF'].astype(str).tolist()}
+            cnpjs_validos = [c for c in cnpjs_top_limpos.values() if c and c != '0' * 14]
+            if cnpjs_validos:
+                tabela_ceis_existe = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='lista_ceis'"
+                ).fetchone()
+                if tabela_ceis_existe:
+                    placeholders_sancao = ','.join(['?'] * len(cnpjs_validos))
+                    df_sancoes_ceis = pd.read_sql_query(
+                        f"SELECT cnpj, nome_sancionado, categoria_sancao, data_fim FROM lista_ceis WHERE cnpj IN ({placeholders_sancao})",
+                        conn, params=cnpjs_validos
+                    )
+                    for _, s in df_sancoes_ceis.iterrows():
+                        sancoes_por_cnpj[s['cnpj']] = {"base": "CEIS", "categoria": s.get('categoria_sancao'), "sancao_fim": s.get('data_fim')}
+                    df_sancoes_cepim = pd.read_sql_query(
+                        f"SELECT cnpj, motivo FROM lista_cepim WHERE cnpj IN ({placeholders_sancao})",
+                        conn, params=cnpjs_validos
+                    )
+                    for _, s in df_sancoes_cepim.iterrows():
+                        sancoes_por_cnpj.setdefault(s['cnpj'], {"base": "CEPIM", "categoria": s.get('motivo'), "sancao_fim": None})
+        except Exception as e:
+            logger.warning(f"⚠️ Não foi possível cruzar fornecedores do sociograma com CEIS/CEPIM: {e}")
+
         for supplier_rank, row in df_forn_top.iterrows():
             cnpj = str(row['txtCNPJCPF'])
             nome_forn = str(row['txtFornecedor'])
             f_id = f"FORN_{cnpj}"
             connect_count = int(row.get('parlamentares_compartilhados', 0) or 0)
             shared_volume = float(row.get('volume_compartilhado', 0.0) or 0.0)
-            
+            sancao_info = sancoes_por_cnpj.get(cnpjs_top_limpos.get(cnpj))
+            nome_label = (nome_forn[:20] + "...") if len(nome_forn) > 20 else nome_forn
+
             if f_id not in node_ids:
                 nodes.append({
                     "id": f_id,
-                    "name": (nome_forn[:20] + "...") if len(nome_forn) > 20 else nome_forn,
+                    "name": f"⚠️ {nome_label}" if sancao_info else nome_label,
                     "fullName": nome_forn,
                     "category": "Fornecedor",
                     "symbolSize": 18 + min(connect_count * 2, 12),
@@ -9889,10 +10018,39 @@ async def get_conexoes_gastos(parlamentar: str, despesa: str):
                     "sharedVolume": shared_volume,
                     "cidade_empresa": (supplier_geo.get(cnpj) or {}).get("cidade_empresa"),
                     "estado_empresa": (supplier_geo.get(cnpj) or {}).get("estado_empresa"),
-                    "itemStyle": {"color": "#d97706"}
+                    "sancionado": bool(sancao_info),
+                    "sancao_base": sancao_info.get("base") if sancao_info else None,
+                    "sancao_categoria": sancao_info.get("categoria") if sancao_info else None,
+                    "itemStyle": {"color": "#dc2626", "borderColor": "#7f1d1d", "borderWidth": 2} if sancao_info else {"color": "#d97706"}
                 })
                 node_ids.add(f_id)
-            
+
+                # Nó explícito de sanção, ligado ao fornecedor — deixa visível no grafo
+                # (não só no tooltip) que aquele CNPJ está no CEIS/CEPIM da CGU.
+                if sancao_info:
+                    s_id = f"SANCAO_{cnpj}"
+                    categoria = (sancao_info.get("categoria") or "").strip()
+                    base = sancao_info.get("base")
+                    label_sancao = f"🛑 {base}" + (f": {categoria[:24]}" if categoria else "")
+                    if s_id not in node_ids:
+                        nodes.append({
+                            "id": s_id,
+                            "name": label_sancao,
+                            "fullName": f"{base} — {categoria}" if categoria else base,
+                            "category": "Sanção",
+                            "symbolSize": 16,
+                            "showLabel": True,
+                            "itemStyle": {"color": "#7f1d1d", "borderColor": "#450a0a", "borderWidth": 2}
+                        })
+                        node_ids.add(s_id)
+                    links.append({
+                        "source": f_id,
+                        "target": s_id,
+                        "value": 1,
+                        "kind": "sancao",
+                        "lineStyle": {"color": "#dc2626", "width": 2.5, "type": "dashed"}
+                    })
+
             links.append({
                 "source": main_party_id or main_id,
                 "target": f_id,
@@ -11391,7 +11549,7 @@ INSTRUÇÕES:
 PALAVRAS-CHAVE:"""
 
                 response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="gpt-5.4-mini",
                     messages=[{"role": "user", "content": prompt}],
                     max_completion_tokens=400,
                     temperature=0.7
@@ -11992,7 +12150,7 @@ METADADOS:
 {json.dumps(metadata_list, ensure_ascii=False)}"""
 
                 resp = await client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model="gpt-5.4-mini",
                     messages=[{"role": "user", "content": prompt_filtro}],
                     response_format={"type": "json_object"},
                     max_completion_tokens=2000,
@@ -12105,7 +12263,7 @@ DISCURSOS:
 {chr(10).join(discursos_texto)}"""
 
                     resp = await client.chat.completions.create(
-                        model="gpt-4o-mini",
+                        model="gpt-5.4-mini",
                         messages=[{"role": "system", "content": "Analista parlamentar."}, {"role": "user", "content": prompt_analise}],
                         response_format={"type": "json_object"},
                         max_completion_tokens=8000,
@@ -13244,7 +13402,7 @@ async def investigar_passageiro_osint(data: dict):
         # IA Sumarização (GPT-4o-mini)
         contexto = f"Passageiro: {nome_passageiro}\nSociedades: {json.dumps(socios_info)}\nDoações: {json.dumps(doacoes_info)}\nWeb: {json.dumps(buscas)}"
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.4-mini",
             messages=[{"role": "system", "content": "Resuma o provável vínculo político deste passageiro em 400 caracteres com tom de auditor."} ,
                       {"role": "user", "content": contexto}],
             temperature=0.3
@@ -16952,7 +17110,7 @@ async def analise_votos_antunes(request: dict):
         """
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.4-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -19256,7 +19414,7 @@ Retorne APENAS o JSON, sem markdown."""
         msgs.append({"role": "user", "content": message})
 
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.4-mini",
             messages=msgs,
             temperature=0,
             max_completion_tokens=150
@@ -19780,7 +19938,7 @@ DISCURSOS RECUPERADOS ({len(top_results)} registros):
 
         # ── 9. Chamar Chat Completion — gpt-4o-mini (rápido) ──
         chat_resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.4-mini",
             messages=messages,
             temperature=0.3,
             max_completion_tokens=2000
@@ -19861,7 +20019,7 @@ Produza um dossiê analítico em **4 parágrafos curtos e diretos**, com linguag
 REGRAS: Retorne apenas texto corrido com marcações Markdown (negritos em palavras-chave). Sem títulos, sem listas, sem JSON. Sem introduções genéricas. Vá direto ao ponto como um analista experiente."""
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.4-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.25,
             max_completion_tokens=800

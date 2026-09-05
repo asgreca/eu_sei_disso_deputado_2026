@@ -20,11 +20,9 @@ const LeafletMap = ({ aeroportos, rotas }) => {
     // Inicializar mapa centrado no Brasil
     const map = L.map(mapRef.current).setView([-15.7801, -47.9292], 4);
 
-    // Adicionar camada de tiles (CartoDB Positron — livre, sem bloqueio de referer)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19
+    // Adicionar camada de tiles (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
     mapInstanceRef.current = map;

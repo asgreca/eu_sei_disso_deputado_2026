@@ -779,7 +779,7 @@ export const createTreeMapOption = (data, title = '') => {
         const val = info.value;
         return [
           '<div style="font-weight:bold; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 5px; margin-bottom: 5px">' + info.name + '</div>',
-          'Valor: ' + val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          'Votos: ' + val.toLocaleString('pt-BR')
         ].join('');
       }
     },

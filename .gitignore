@@ -43,6 +43,12 @@ data/
 scratch/
 votacao/
 
+# Extratos CEIS/CEPIM (CGU) baixados automaticamente por 32_sancoes.py —
+# não commitar: são regerados a cada execução a partir do Portal da
+# Transparência e ficam desatualizados rapidamente.
+[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_CEIS.csv
+[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_CEPIM.csv
+
 # Batch files (OpenAI API)
 batch_*.json
 batch_*.jsonl
@@ -75,13 +81,16 @@ Thumbs.db
 *.code-workspace
 
 # Ferramentas externas / não essenciais
+# ⚠️ Ancoradas na raiz (/) de propósito: sem a barra inicial, "pages/" também
+# batia com frontend/src/pages/ e excluía TODAS as páginas React do repositório
+# (App.js importa ~20 componentes de lá — o build quebrava silenciosamente).
 AsimovGPT/
 caveman-compress/
 x_perfil_robo/
 x_sessao/
-pages/
-scripts/
-skills/
+/pages/
+/scripts/
+/skills/
 
 # Claude
 .claude/worktrees/

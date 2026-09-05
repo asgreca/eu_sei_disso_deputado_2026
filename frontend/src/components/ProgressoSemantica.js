@@ -15,7 +15,7 @@ import {
   Divider,
 } from '@mui/material';
 import { brandColors } from '../utils/chartOptions';
-import { API_HEADERS, API_BASE_URL } from '../config';
+import { API_HEADERS } from '../config';
 
 const ProgressoSemantica = ({ session_id, tema, polling = true }) => {
   const [progresso, setProgresso] = useState(null);
@@ -26,7 +26,7 @@ const ProgressoSemantica = ({ session_id, tema, polling = true }) => {
 
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/busca-semantica/progress/${session_id}`, { headers: API_HEADERS });
+        const response = await fetch(`/api/busca-semantica/progress/${session_id}`, { headers: API_HEADERS });
         const data = await response.json();
         setProgresso(data);
         setLoading(false);
