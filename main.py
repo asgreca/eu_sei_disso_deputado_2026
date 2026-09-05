@@ -7091,7 +7091,12 @@ async def get_mapa_partidario_zonas(
         if cached_payload:
             return cached_payload
 
-        payload = compute_mapa_partidario_payload(
+        # compute_mapa_partidario_payload faz consultas pesadas e SÍNCRONAS no DuckDB
+        # (agregação por seção eleitoral do estado inteiro). Rodar isso direto dentro de
+        # um handler async bloqueia o event loop inteiro — trava o backend para TODAS as
+        # outras abas/usuários até terminar. Delegamos para uma thread para não travar.
+        payload = await asyncio.to_thread(
+            compute_mapa_partidario_payload,
             estado=estado,
             partido=partido,
             partido_atual=partido_atual,
