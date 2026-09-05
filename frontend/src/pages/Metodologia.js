@@ -53,7 +53,7 @@ const fontesCGU = [
   {
     fonte: 'CEPIM — Cadastro de Entidades sem Fins Lucrativos Impedidas',
     dados: 'ONGs e associações impedidas de celebrar convênios com o poder público.',
-    uso: 'Cruzado com entidades beneficiadas por emendas parlamentares.',
+    uso: 'Cruzado com entidades beneficiadas por emendas parlamentares e com fornecedores da cota parlamentar (CEAP).',
     href: 'https://portaldatransparencia.gov.br/download-de-dados/cepim',
   },
   {
@@ -65,10 +65,11 @@ const fontesCGU = [
 ];
 
 const fontesOutras = [
-  { fonte: 'API de Dados Abertos da Câmara dos Deputados', dados: 'Gastos de gabinete (CEAP), discursos, proposições, comissões, presença, votações, dados cadastrais.', href: 'https://dadosabertos.camara.leg.br' },
-  { fonte: 'TSE — Dados Abertos', dados: 'Resultados eleitorais 2022 por seção de votação, geolocalização de urnas.', href: 'https://dadosabertos.tse.jus.br' },
+  { fonte: 'API de Dados Abertos da Câmara dos Deputados', dados: 'Gastos de gabinete (CEAP), discursos, proposições votadas, comissões, presença, votações nominais, dados cadastrais dos deputados.', href: 'https://dadosabertos.camara.leg.br' },
+  { fonte: 'TSE — Dados Abertos', dados: 'Resultados eleitorais 2022 por seção de votação, geolocalização de urnas, e prestação de contas de campanha (doações recebidas pelos candidatos).', href: 'https://dadosabertos.tse.jus.br' },
   { fonte: 'Receita Federal — Dados Abertos de CNPJ', dados: 'Quadro societário de empresas beneficiadas por gastos e emendas.', href: 'https://dados.rfb.gov.br' },
-  { fonte: 'IBGE', dados: 'Dados censitários e indicadores municipais usados nos mapas.', href: 'https://www.ibge.gov.br' },
+  { fonte: 'IBGE — Setores Censitários', dados: 'Polígonos de setores censitários e indicadores socioeconômicos, cruzados espacialmente com as seções eleitorais para caracterizar redutos no Mapa Eleitoral.', href: 'https://www.ibge.gov.br' },
+  { fonte: 'Câmara dos Deputados — Portal da Transparência RH', dados: 'Quadro de secretários parlamentares (assessores de gabinete): lotação, salário e data de admissão.', href: 'https://www.camara.leg.br/transparencia/recursos-humanos/funcionarios' },
 ];
 
 const funcionalidades = [
@@ -76,7 +77,7 @@ const funcionalidades = [
     titulo: 'Detalhamento de Gastos (CEAP)',
     resumo: 'Consumo dos dados de reembolso de gabinete de cada deputado, com detecção de notas fiscais atípicas.',
     detalhe:
-      'Coletamos as notas da Cota para Exercício da Atividade Parlamentar via API da Câmara e as organizamos por fornecedor, categoria e mês. Um algoritmo de desvio-padrão sinaliza valores muito acima da média histórica do próprio fornecedor/categoria como "atípicos", para investigação — não como acusação automática.',
+      'Coletamos as notas da Cota para Exercício da Atividade Parlamentar via API da Câmara e as organizamos por fornecedor, categoria e mês. Uma nota é sinalizada como "atípica" quando seu valor ultrapassa a média + 2 desvios-padrão de todos os gastos já registrados naquela mesma categoria (rubrica), somando todos os deputados — um limite estatístico, não uma acusação automática.',
   },
   {
     titulo: 'Fornecedores da Cota Parlamentar Sancionados (CEIS/CEPIM)',
@@ -109,22 +110,46 @@ const funcionalidades = [
       'Usamos os resultados eleitorais de 2022 do TSE, agregados por local de votação, para mostrar redutos eleitorais e a força de cada parlamentar/partido território a território.',
   },
   {
+    titulo: 'Votações — Geral e por Parlamentar',
+    resumo: 'Como cada deputado votou em cada proposição, e o quanto isso esteve alinhado com a pauta do Governo.',
+    detalhe:
+      'Coletamos os votos nominais registrados pela Câmara em cada votação e classificamos, projeto a projeto, se ele era ou não de interesse do Governo (pauta do Executivo). O "índice de alinhamento" mostrado no site é o percentual de vezes em que o voto do deputado acompanhou essa pauta governista — não a orientação do partido do próprio deputado. Um modelo de linguagem apoia a classificação de tema e contexto das votações mais complexas.',
+  },
+  {
+    titulo: 'Atuação em Comissões',
+    resumo: 'Relatório de atuação de um deputado dentro de uma comissão específica, a partir dos discursos.',
+    detalhe:
+      'A partir das notas taquigráficas e discursos feitos por um deputado dentro de uma comissão, geramos um relatório de atuação — do que ele efetivamente discutiu e defendeu naquele órgão, com apoio de IA para resumir o conteúdo. É uma funcionalidade distinta da Presença Parlamentar: aqui o foco é o conteúdo da atuação, não a frequência.',
+  },
+  {
     titulo: 'Presença Parlamentar',
     resumo: 'Frequência em sessões do Plenário e reuniões de comissões.',
     detalhe:
-      'Consolidamos os registros oficiais de presença da Câmara por deputado, comissão e período, com evolução mensal e ranking por órgão.',
+      'Consolidamos os registros oficiais de presença da Câmara por deputado, comissão e período, com evolução mensal e ranking por órgão. Um modelo de linguagem pode gerar uma análise das reuniões que o deputado perdeu, resumindo o que foi discutido em sua ausência.',
+  },
+  {
+    titulo: 'Assessores de Gabinete',
+    resumo: 'Quadro de secretários parlamentares e custo de folha de cada gabinete.',
+    detalhe:
+      'Coletamos, na página de Recursos Humanos da Câmara, o nome, a lotação, o salário e a data de admissão dos secretários parlamentares de cada gabinete. Esses nomes são comparados (por correspondência exata, normalizada) com o quadro societário de empresas beneficiadas por emendas do mesmo deputado, sinalizando quando um assessor de gabinete aparece como sócio de uma empresa beneficiada.',
+  },
+  {
+    titulo: 'Passagens Aéreas e Investigação de Passageiros (OSINT)',
+    resumo: 'Detalhamento de trechos aéreos pagos com a cota parlamentar, com investigação de possíveis acompanhantes.',
+    detalhe:
+      'Além de detalhar as passagens aéreas custeadas pela CEAP (mesma regra de detecção de valores atípicos), o sistema permite investigar um nome de passageiro específico: cruza esse nome com bases públicas e faz uma varredura OSINT (fontes abertas na web) para checar se aparece associado a esse deputado, útil para identificar viagens de terceiros custeadas com dinheiro público.',
   },
   {
     titulo: 'Análise de Imprensa',
-    resumo: 'Monitoramento de menções a parlamentares na mídia.',
+    resumo: 'Monitoramento de menções a parlamentares na mídia, com pontuação de sentimento por notícia.',
     detalhe:
-      'Coleta automática de notícias públicas mencionando cada deputado, para medir presença e tom da cobertura midiática.',
+      'Coletamos automaticamente notícias públicas mencionando cada deputado e atribuímos uma pontuação de sentimento a cada uma. A partir desse conjunto, um modelo de linguagem gera um dossiê de auditoria sobre o potencial midiático e a cobertura recebida pelo parlamentar.',
   },
   {
     titulo: 'Busca Semântica, Chat Parlamentar e Robô Antunes',
-    resumo: 'Assistentes de IA para explorar os dados em linguagem natural.',
+    resumo: 'IA para explorar os dados em linguagem natural e para gerar relatórios de auditoria automatizados nas demais telas.',
     detalhe:
-      'Utilizamos busca vetorial (ChromaDB) sobre discursos e documentos, e um modelo de linguagem (atualmente gpt-5.4-mini) para responder perguntas e gerar relatórios de auditoria automatizados. Todo relatório gerado por IA traz o aviso de que exige validação humana e jurídica antes de qualquer uso formal.',
+      'Utilizamos busca vetorial (ChromaDB) sobre discursos e documentos para a Busca Semântica e o Chat Parlamentar. O "Robô Antunes" é o mesmo modelo de linguagem (atualmente gpt-5.4-mini) aplicado, em várias telas do site (Gastos, Emendas, Comissões, Presença, Imprensa), à geração de relatórios de auditoria a partir dos dados já filtrados. Todo relatório gerado por IA traz o aviso de que exige validação humana e jurídica antes de qualquer uso formal.',
   },
 ];
 
