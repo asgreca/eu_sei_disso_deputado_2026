@@ -1874,8 +1874,8 @@ const EmendasParlamentares = () => {
         )}
 
       <DataSourceFooter
-        sources={[{"label":"Emendas — Portal da Câmara","href":"https://dadosabertos.camara.leg.br","type":"camara"},{"label":"Siga Brasil — Senado Federal","href":"https://www12.senado.leg.br/orcamento/sigabrasil","type":"camara"},{"label":"SIOP — Ministério da Fazenda","href":"https://siop.planejamento.gov.br","type":"receita"},{"label":"CEIS/CEPIM — CGU","href":"https://portaldatransparencia.gov.br/sancoes","type":"cgu"}]}
-        note="Emendas parlamentares individuais e de bancada extraídas do SIOP e do Portal de Dados Abertos da Câmara dos Deputados. Cruzamento com sanções CEIS/CEPIM publicadas pela CGU."
+        sources={[{"label":"Emendas — Portal da Transparência (CGU)","href":"https://portaldatransparencia.gov.br/emendas","type":"cgu"},{"label":"Deputados — Portal da Câmara","href":"https://dadosabertos.camara.leg.br","type":"camara"},{"label":"CEIS/CEPIM — CGU","href":"https://portaldatransparencia.gov.br/sancoes","type":"cgu"}]}
+        note="Emendas parlamentares individuais e de bancada extraídas do Portal da Transparência (mantido pela CGU). Identificação dos deputados via Portal de Dados Abertos da Câmara. Cruzamento com sanções CEIS/CEPIM publicadas pela CGU."
       />
     </Container>
     </Box >

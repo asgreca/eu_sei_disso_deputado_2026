@@ -67,7 +67,6 @@ const fontesCGU = [
 const fontesOutras = [
   { fonte: 'API de Dados Abertos da Câmara dos Deputados', dados: 'Gastos de gabinete (CEAP), discursos, proposições, comissões, presença, votações, dados cadastrais.', href: 'https://dadosabertos.camara.leg.br' },
   { fonte: 'TSE — Dados Abertos', dados: 'Resultados eleitorais 2022 por seção de votação, geolocalização de urnas.', href: 'https://dadosabertos.tse.jus.br' },
-  { fonte: 'Siga Brasil (Senado Federal) e SIOP (Ministério da Fazenda)', dados: 'Execução orçamentária detalhada de emendas parlamentares.', href: 'https://www12.senado.leg.br/orcamento/sigabrasil' },
   { fonte: 'Receita Federal — Dados Abertos de CNPJ', dados: 'Quadro societário de empresas beneficiadas por gastos e emendas.', href: 'https://dados.rfb.gov.br' },
   { fonte: 'IBGE', dados: 'Dados censitários e indicadores municipais usados nos mapas.', href: 'https://www.ibge.gov.br' },
 ];
@@ -89,7 +88,7 @@ const funcionalidades = [
     titulo: 'Emendas Parlamentares e Alertas de Integridade',
     resumo: 'Rastreia o fluxo emenda → convênio → fornecedor → sócios, e cruza com CEIS/CEPIM.',
     detalhe:
-      'As emendas de cada deputado são coletadas via Portal da Transparência/SIOP. Documentos de pagamento (notas de empenho, ordens bancárias) trazem o CNPJ do beneficiário, que cruzamos com CEIS/CEPIM para identificar repasses a entidades sancionadas — e com a Receita Federal para mapear sócios em comum com o próprio parlamentar, seus assessores ou doadores de campanha.',
+      'As emendas de cada deputado são coletadas via Portal da Transparência (mantido pela CGU). Documentos de pagamento (notas de empenho, ordens bancárias) trazem o CNPJ do beneficiário, que cruzamos com CEIS/CEPIM para identificar repasses a entidades sancionadas — e com a Receita Federal para mapear sócios em comum com o próprio parlamentar, seus assessores ou doadores de campanha.',
   },
   {
     titulo: 'Sociograma de Conexões Financeiras',
